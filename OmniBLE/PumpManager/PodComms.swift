@@ -389,7 +389,6 @@ public class PodComms: CustomDebugStringConvertible {
                 return
             }
 
-            // self.configureDevice(device, with: commandSession) no RL to configure
             let transport = PodMessageTransport(manager: manager, myId: self.myId, podId: self.podId, state: self.podState!.messageTransportState)
             transport.messageLogger = self.messageLogger
             let podSession = PodCommsSession(podState: self.podState!, transport: transport, delegate: self)
@@ -438,6 +437,18 @@ extension PodComms: OmniBLEConnectionDelegate {
 // MARK: - PeripheralManagerDelegate
 
 extension PodComms: PeripheralManagerDelegate {
+    
+    private func runStatusFetchAfterConfiguration() {
+        self.runSession(withName: "Post-connect status fetch") { result in
+            switch result {
+            case .success(let session):
+                let _ = try? session.getStatus(confirmationBeepType: .none)
+            case .failure:
+                // Errors can be ignored here.
+                break
+            }
+        }
+    }
 
     func completeConfiguration(for manager: PeripheralManager) throws {
         log.default("PodComms completeConfiguration")
@@ -449,6 +460,8 @@ extension PodComms: PeripheralManagerDelegate {
                     try manager.sendHello(myId: myId)
                     try manager.enableNotifications() // Seemingly this cannot be done before the hello command, or the pod disconnects
                     try self?.establishNewSession()
+                    self?.runStatusFetchAfterConfiguration()
+                    // We can "runSession" from within session, as we're just adding to the operation queue; it will run after this block finishes
                 } catch {
                     self?.log.error("Pod session sync error: %{public}@", String(describing: error))
                 }
