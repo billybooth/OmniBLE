@@ -199,29 +199,29 @@ public enum PodAlert: CustomStringConvertible, RawRepresentable, Equatable {
             self = .waitingForPairingReminder
         case "finishSetupReminder":
             self = .finishSetupReminder
-        case "expirationAlert":
+        case "expirationReminder":
             guard let alertTime = rawValue["alertTime"] as? Double else {
                 return nil
             }
             self = .expirationReminder(TimeInterval(alertTime))
-        case "expirationAdvisoryAlarm":
+        case "expired":
             guard let alarmTime = rawValue["alarmTime"] as? Double,
                 let duration = rawValue["duration"] as? Double else
             {
                 return nil
             }
             self = .expired(alertTime: TimeInterval(alarmTime), duration: TimeInterval(duration))
-        case "shutdownImminentAlarm":
+        case "shutdownImminent":
             guard let alarmTime = rawValue["alarmTime"] as? Double else {
                 return nil
             }
             self = .shutdownImminent(alarmTime)
-        case "lowReservoirAlarm":
+        case "lowReservoir":
             guard let units = rawValue["units"] as? Double else {
                 return nil
             }
             self = .lowReservoir(units)
-        case "autoOffAlarm":
+        case "autoOff":
             guard let active = rawValue["active"] as? Bool,
                 let countdownDuration = rawValue["countdownDuration"] as? Double else
             {
@@ -254,15 +254,15 @@ public enum PodAlert: CustomStringConvertible, RawRepresentable, Equatable {
             case .finishSetupReminder:
                 return "finishSetupReminder"
             case .expirationReminder:
-                return "expirationAlert"
+                return "expirationReminder"
             case .expired:
-                return "expirationAdvisoryAlarm"
+                return "expired"
             case .shutdownImminent:
-                return "shutdownImminentAlarm"
+                return "shutdownImminent"
             case .lowReservoir:
-                return "lowReservoirAlarm"
+                return "lowReservoir"
             case .autoOff:
-                return "autoOffAlarm"
+                return "autoOff"
             case .podSuspendedReminder:
                 return "podSuspendedReminder"
             case .suspendTimeExpired:
