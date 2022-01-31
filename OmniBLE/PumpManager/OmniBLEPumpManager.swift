@@ -285,7 +285,7 @@ extension OmniBLEPumpManager {
 
     private func basalDeliveryState(for state: OmniBLEPumpManagerState) -> PumpManagerStatus.BasalDeliveryState {
         guard let podState = state.podState else {
-            return .suspended(state.lastPumpDataReportDate ?? .distantPast)
+            return .active(.distantPast)
         }
 
         switch state.suspendEngageState {
@@ -840,11 +840,6 @@ extension OmniBLEPumpManager {
     }
 
     public func getPodStatus(storeDosesOnSuccess: Bool, emitConfirmationBeep: Bool, completion: ((_ result: PumpManagerResult<StatusResponse>) -> Void)? = nil) {
-        guard state.podState?.unfinalizedBolus?.scheduledCertainty == .uncertain || state.podState?.unfinalizedBolus?.isFinished != false else {
-            self.log.info("Skipping status request due to unfinalized bolus in progress.")
-            completion?(.failure(.deviceState(PodCommsError.unfinalizedBolus)))
-            return
-        }
 
         podComms.runSession(withName: "Get pod status") { (result) in
             do {
