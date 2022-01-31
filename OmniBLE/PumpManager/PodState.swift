@@ -398,12 +398,12 @@ public struct PodState: RawRepresentable, Equatable, CustomDebugStringConvertibl
         } else {
             // Assume migration, and set up with alerts that are normally configured
             self.configuredAlerts = [
-                .slot2: .shutdownImminentAlarm(0),
-                .slot3: .expirationAlert(0),
-                .slot4: .lowReservoirAlarm(0),
+                .slot2: .shutdownImminent(0),
+                .slot3: .expirationReminder(0),
+                .slot4: .lowReservoir(0),
                 .slot5: .podSuspendedReminder(active: false, suspendTime: 0),
                 .slot6: .suspendTimeExpired(suspendTime: 0),
-                .slot7: .expirationAdvisoryAlarm(alarmTime: 0, duration: 0)
+                .slot7: .expired(alarmTime: 0, duration: 0)
             ]
         }
         
