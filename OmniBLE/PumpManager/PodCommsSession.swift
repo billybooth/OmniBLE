@@ -419,7 +419,7 @@ public class PodCommsSession {
             // Configure all the non-optional Pod Alarms
             let expirationTime = activatedAt + Pod.nominalPodLife
             let timeUntilExpirationAdvisory = expirationTime.timeIntervalSinceNow
-            let expirationAdvisoryAlarm = PodAlert.expired(alarmTime: timeUntilExpirationAdvisory, duration: Pod.expirationAdvisoryWindow)
+            let expirationAdvisoryAlarm = PodAlert.expired(alertTime: timeUntilExpirationAdvisory, duration: Pod.expirationAdvisoryWindow)
             let endOfServiceTime = activatedAt + Pod.serviceDuration
             let shutdownImminentAlarm = PodAlert.shutdownImminent((endOfServiceTime - Pod.endOfServiceImminentWindow).timeIntervalSinceNow)
             try configureAlerts([expirationAdvisoryAlarm, shutdownImminentAlarm])

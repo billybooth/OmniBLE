@@ -403,7 +403,7 @@ public struct PodState: RawRepresentable, Equatable, CustomDebugStringConvertibl
                 .slot4: .lowReservoir(0),
                 .slot5: .podSuspendedReminder(active: false, suspendTime: 0),
                 .slot6: .suspendTimeExpired(suspendTime: 0),
-                .slot7: .expired(alarmTime: 0, duration: 0)
+                .slot7: .expired(alertTime: 0, duration: 0)
             ]
         }
         
