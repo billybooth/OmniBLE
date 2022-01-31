@@ -852,7 +852,6 @@ extension OmniBLEPumpManager {
                 case .success(let session):
                     let beepType: BeepConfigType? = self.confirmationBeeps && emitConfirmationBeep ? .bipBip : nil
                     let status = try session.getStatus(confirmationBeepType: beepType)
-
                     if storeDosesOnSuccess {
                         session.dosesForStorage({ (doses) -> Bool in
                             self.store(doses: doses, in: session)
@@ -1975,12 +1974,77 @@ extension OmniBLEPumpManager: PumpManager {
     }
     
     private func alertsChanged(oldAlerts: AlertSet, newAlerts: AlertSet) {
+        guard let podState = state.podState else {
+            preconditionFailure("trying to manage alerts without podState")
+        }
+
         let (added, removed) = oldAlerts.compare(to: newAlerts)
-        for alert in added {
-            log.default("*** Added alert %@", String(describing: alert))
+        for slot in added {
+            if let podAlert = podState.configuredAlerts[slot] {
+                log.default("*** Alert slot triggered: %{public}@", String(describing: slot))
+                if let pumpManagerAlert = getPumpManagerAlert(for: podAlert, slot: slot) {
+                    issueAlert(alert: pumpManagerAlert)
+                } else {
+                    log.default("Ignoring alert: %{public}@", String(describing: podAlert))
+                }
+            } else {
+                log.error("Unconfigured alert slot triggered: %{public}@", String(describing: slot))
+            }
         }
         for alert in removed {
-            log.default("*** Removed alert %@", String(describing: alert))
+            log.default("*** Alert slot cleared: %{public}@", String(describing: alert))
+        }
+    }
+    
+    private func getPumpManagerAlert(for podAlert: PodAlert, slot: AlertSlot) -> PumpManagerAlert? {
+        guard let podState = state.podState, let expiresAt = podState.expiresAt else {
+            preconditionFailure("trying to lookup alert info without podState")
+        }
+        
+        guard !podAlert.isIgnored else {
+            return nil
+        }
+
+        switch podAlert {
+        case .podSuspendedReminder:
+            return PumpManagerAlert.suspendInProgress(triggeringSlot: slot)
+        case .expirationAlert:
+            let timeToExpiry = TimeInterval(hours: expiresAt.timeIntervalSince(dateGenerator()).hours.rounded())
+            return PumpManagerAlert.userPodExpiration(triggeringSlot: slot, scheduledExpirationReminderOffset: timeToExpiry)
+        case .expirationAdvisoryAlarm:
+            return PumpManagerAlert.podExpiring(triggeringSlot: slot)
+        case .shutdownImminentAlarm:
+            return PumpManagerAlert.podExpireImminent(triggeringSlot: slot)
+        case .lowReservoirAlarm(let units):
+            return PumpManagerAlert.lowReservoir(triggeringSlot: slot, lowReservoirReminderValue: units)
+        case .finishSetupReminder, .waitingForPairingReminder:
+            return PumpManagerAlert.finishSetupReminder(triggeringSlot: slot)
+        case .suspendTimeExpired:
+            return PumpManagerAlert.suspendEnded(triggeringSlot: slot)
+        default:
+            return nil
+        }
+    }
+    
+    private func silenceAcknowledgedAlerts() {
+        for alert in state.alertsWithPendingAcknowledgment {
+            if let slot = alert.triggeringSlot {
+                self.podComms.runSession(withName: "Silence already acknowledged alert") { (result) in
+                    switch result {
+                    case .success(let session):
+                        do {
+                            let _ = try session.acknowledgePodAlerts(alerts: AlertSet(slots: [slot]), confirmationBeepType: self.confirmationBeeps ? .beep : .noBeep)
+                        } catch {
+                            return
+                        }
+                        self.mutateState { state in
+                            state.activeAlerts.remove(alert)
+                        }
+                    case .failure:
+                        return
+                    }
+                }
+            }
         }
     }
     
@@ -2054,6 +2118,20 @@ extension OmniBLEPumpManager: MessageLogger {
 }
 
 extension OmniBLEPumpManager: PodCommsDelegate {
+    func podCommsDidEstablishSession(_ podComms: PodComms) {
+        
+        podComms.runSession(withName: "Post-connect status fetch") { result in
+            switch result {
+            case .success(let session):
+                let _ = try? session.getStatus(confirmationBeepType: .none)
+                self.silenceAcknowledgedAlerts()
+            case .failure:
+                // Errors can be ignored here.
+                break
+            }
+        }
+    }
+    
     func podComms(_ podComms: PodComms, didChange podState: PodState) {
         let (newFault, oldAlerts, newAlerts) = setStateWithResult { (state) -> (DetailedStatus?,AlertSet,AlertSet) in
             // Check for any updates to bolus certainty, and log them
@@ -2107,11 +2185,53 @@ extension OmniBLEPumpManager: AlertSoundVendor {
     }
 }
 
-extension OmniBLEPumpManager: AlertResponder {
+// MARK: - AlertResponder implementation
+extension OmniBLEPumpManager {
     public func acknowledgeAlert(alertIdentifier: Alert.AlertIdentifier, completion: @escaping (Error?) -> Void) {
-        if alertIdentifier == podExpirationNotificationIdentifier.alertIdentifier {
-            // TODO
-            //acknowledgePodAlerts(<#T##alertsToAcknowledge: AlertSet##AlertSet#>, completion: <#T##([AlertSlot : PodAlert]?) -> Void##([AlertSlot : PodAlert]?) -> Void##(_ alerts: [AlertSlot : PodAlert]?) -> Void#>)
+        guard self.hasActivePod else {
+            completion(OmniBLEPumpManagerError.noPodPaired)
+            return
+        }
+
+        for alert in state.activeAlerts {
+            if alert.alertIdentifier == alertIdentifier {
+                // If this alert was triggered by the pod find the slot to clear it.
+                if let slot = alert.triggeringSlot {
+                    self.podComms.runSession(withName: "Acknowledge Alert") { (result) in
+                        switch result {
+                        case .success(let session):
+                            do {
+                                let _ = try session.acknowledgePodAlerts(alerts: AlertSet(slots: [slot]), confirmationBeepType: self.confirmationBeeps ? .beep : .noBeep)
+                            } catch {
+                                self.mutateState { state in
+                                    state.alertsWithPendingAcknowledgment.insert(alert)
+                                }
+                                completion(error)
+                                return
+                            }
+                            self.mutateState { state in
+                                state.activeAlerts.remove(alert)
+                            }
+                            completion(nil)
+                        case .failure(let error):
+                            self.mutateState { state in
+                                state.alertsWithPendingAcknowledgment.insert(alert)
+                            }
+                            completion(error)
+                            return
+                        }
+                    }
+                } else {
+                    // Non-pod alert
+                    self.mutateState { state in
+                        state.activeAlerts.remove(alert)
+                        if alert == .timeOffsetChangeDetected {
+                            state.acknowledgedTimeOffsetAlert = true
+                        }
+                    }
+                    completion(nil)
+                }
+            }
         }
     }
 }
