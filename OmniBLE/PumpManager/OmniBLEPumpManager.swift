@@ -2090,6 +2090,9 @@ extension OmniBLEPumpManager: PodCommsDelegate {
             case .success(let session):
                 let _ = try? session.getStatus(confirmationBeepType: .none)
                 self.silenceAcknowledgedAlerts()
+                session.dosesForStorage() { (doses) -> Bool in
+                    return self.store(doses: doses, in: session)
+                }
             case .failure:
                 // Errors can be ignored here.
                 break
