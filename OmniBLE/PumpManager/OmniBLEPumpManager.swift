@@ -2093,17 +2093,17 @@ extension OmniBLEPumpManager: PodCommsDelegate {
                 session.dosesForStorage() { (doses) -> Bool in
                     return self.store(doses: doses, in: session)
                 }
+                if self.provideHeartbeat {
+                    self.pumpDelegate.notify { (delegate) in
+                        delegate?.pumpManagerBLEHeartbeatDidFire(self)
+                    }
+                }
             case .failure:
                 // Errors can be ignored here.
                 break
             }
         }
         
-        if self.provideHeartbeat {
-            pumpDelegate.notify { (delegate) in
-                delegate?.pumpManagerBLEHeartbeatDidFire(self)
-            }
-        }
     }
     
     func podComms(_ podComms: PodComms, didChange podState: PodState) {
