@@ -27,6 +27,7 @@ public enum PodCommsError: Error {
     case podSuspended
     case podFault(fault: DetailedStatus)
     case commsError(error: Error)
+    case unacknowledgedMessage(error: Error)
     case rejectedMessage(errorCode: UInt8)
     case podChange
     case activationTimeExceeded
@@ -71,6 +72,8 @@ extension PodCommsError: LocalizedError {
             let faultDescription = String(describing: fault.faultEventCode)
             return String(format: LocalizedString("Pod Fault: %1$@", comment: "Format string for pod fault code"), faultDescription)
         case .commsError(let error):
+            return error.localizedDescription
+        case .unacknowledgedMessage(let error):
             return error.localizedDescription
         case .rejectedMessage(let errorCode):
             return String(format: LocalizedString("Command error %1$u", comment: "Format string for invalid message error code (1: error code number)"), errorCode)
@@ -129,6 +132,8 @@ extension PodCommsError: LocalizedError {
         case .podFault:
             return nil
         case .commsError:
+            return nil
+        case .unacknowledgedMessage:
             return nil
         case .rejectedMessage:
             return nil
@@ -262,6 +267,7 @@ public class PodCommsSession {
                 log.info("POD Response: %@", String(describing: responseMessageBlock))
                 return responseMessageBlock
             }
+
 
             if let fault = response.fault {
                 try throwPodFault(fault: fault) // always throws

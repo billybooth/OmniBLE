@@ -485,6 +485,7 @@ extension OmniBLEPumpManager {
             sequenceNumber: podState.lotSeq,
             firmwareVersion: podState.firmwareVersion,
             bleFirmwareVersion: podState.bleFirmwareVersion,
+            deviceName: podComms.manager?.peripheral.name ?? "NA",
             totalDelivery: podState.lastInsulinMeasurements?.delivered,
             lastStatus: podState.lastInsulinMeasurements?.validTime,
             fault: podState.fault?.faultEventCode
