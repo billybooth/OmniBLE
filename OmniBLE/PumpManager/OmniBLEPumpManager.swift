@@ -137,16 +137,37 @@ public class OmniBLEPumpManager: DeviceManager {
         })
     }
 
+    // Status can change even when state does not, because some status changes
+    // purely based on time. This provides a mechanism to evaluate status changes
+    // as time progresses and trigger status updates to clients.
+    private func evaluateStatus() {
+        setState { state in
+            // status is evaluated in the setState call
+        }
+    }
+
     private func setStateWithResult<ReturnType>(_ changes: (_ state: inout OmniBLEPumpManagerState) -> ReturnType) -> ReturnType {
         var oldValue: OmniBLEPumpManagerState!
         var returnType: ReturnType!
+        var shouldNotifyStatusUpdate = false
+        var oldStatus: PumpManagerStatus?
+
         let newValue = lockedState.mutate { (state) in
             oldValue = state
-            returnType = changes(&state)
-        }
+            let oldStatusEvaluationDate = state.lastStatusChange
+            let oldHighlight = buildPumpStatusHighlight(for: oldValue, andDate: oldStatusEvaluationDate)
+            oldStatus = status(for: oldValue)
 
-        guard oldValue != newValue else {
-            return returnType
+            returnType = changes(&state)
+
+            let newStatusEvaluationDate = Date()
+            let newStatus = status(for: state)
+            let newHighlight = buildPumpStatusHighlight(for: state, andDate: newStatusEvaluationDate)
+
+            if oldStatus != newStatus || oldHighlight != newHighlight {
+                shouldNotifyStatusUpdate = true
+                state.lastStatusChange = newStatusEvaluationDate
+            }
         }
 
         if oldValue.podState != newValue.podState {
@@ -164,19 +185,13 @@ public class OmniBLEPumpManager: DeviceManager {
             }
         }
 
-        let oldHighlight = buildPumpStatusHighlight(for: oldValue)
-        let newHiglight = buildPumpStatusHighlight(for: newValue)
-
         // Ideally we ensure that oldValue.rawValue != newValue.rawValue, but the types aren't
         // defined as equatable
         pumpDelegate.notify { (delegate) in
             delegate?.pumpManagerDidUpdateState(self)
         }
 
-        let oldStatus = status(for: oldValue)
-        let newStatus = status(for: newValue)
-
-        if oldStatus != newStatus || oldHighlight != newHiglight {
+        if let oldStatus = oldStatus, shouldNotifyStatusUpdate {
             notifyStatusObservers(oldStatus: oldStatus)
         }
 
@@ -209,9 +224,20 @@ public class OmniBLEPumpManager: DeviceManager {
     
     // Not persisted
     var provideHeartbeat: Bool = false
+
+    private var lastHeartbeat: Date = .distantPast
     
     public func setMustProvideBLEHeartbeat(_ mustProvideBLEHeartbeat: Bool) {
         provideHeartbeat = mustProvideBLEHeartbeat
+    }
+
+    private func issueHeartbeatIfNeeded() {
+        if self.provideHeartbeat, dateGenerator().timeIntervalSince(lastHeartbeat) > .minutes(2) {
+            self.pumpDelegate.notify { (delegate) in
+                delegate?.pumpManagerBLEHeartbeatDidFire(self)
+            }
+            self.lastHeartbeat = Date()
+        }
     }
 
     private let pumpDelegate = WeakSynchronizedDelegate<PumpManagerDelegate>()
@@ -289,7 +315,7 @@ extension OmniBLEPumpManager {
             return .active(.distantPast)
         }
 
-        switch podCommState {
+        switch podCommState(for: state) {
         case .fault:
             return .active(.distantPast)
         default:
@@ -334,6 +360,8 @@ extension OmniBLEPumpManager {
         case .disengaging:
             return .canceling
         case .stable:
+            // TODO: need to evaluate isFinished at a particular date, instead of now()
+            // as this function is called for old states, to compare to current state
             if let bolus = podState.unfinalizedBolus, !bolus.isFinished {
                 return .inProgress(DoseEntry(bolus))
             }
@@ -492,7 +520,7 @@ extension OmniBLEPumpManager {
         )
     }
 
-    public func buildPumpStatusHighlight(for state: OmniBLEPumpManagerState) -> PumpManagerStatus.PumpStatusHighlight? {
+    public func buildPumpStatusHighlight(for state: OmniBLEPumpManagerState, andDate date: Date = Date()) -> PumpManagerStatus.PumpStatusHighlight? {
         if state.pendingCommand != nil {
             return PumpManagerStatus.PumpStatusHighlight(localizedMessage: NSLocalizedString("Comms Issue", comment: "Status highlight that delivery is uncertain."),
                                                          imageName: "exclamationmark.circle.fill",
@@ -542,6 +570,11 @@ extension OmniBLEPumpManager {
                     localizedMessage: NSLocalizedString("Insulin Suspended", comment: "Status highlight that insulin delivery was suspended."),
                     imageName: "pause.circle.fill",
                     state: .warning)
+            } else if date.timeIntervalSince(state.lastPumpDataReportDate ?? .distantPast) > .minutes(12) {
+                return PumpManagerStatus.PumpStatusHighlight(
+                    localizedMessage: NSLocalizedString("No Data", comment: "Status highlight when communications with the pod haven't happened recently."),
+                    imageName: "exclamationmark.circle.fill",
+                    state: .critical)
             }
             return nil
         }
@@ -870,10 +903,10 @@ extension OmniBLEPumpManager {
             return
         }
 
-        self.getPodStatus(storeDosesOnSuccess: false, emitConfirmationBeep: emitConfirmationBeep, completion: completion)
+        self.getPodStatus(emitConfirmationBeep: emitConfirmationBeep, completion: completion)
     }
 
-    public func getPodStatus(storeDosesOnSuccess: Bool, emitConfirmationBeep: Bool, completion: ((_ result: PumpManagerResult<StatusResponse>) -> Void)? = nil) {
+    public func getPodStatus(emitConfirmationBeep: Bool, completion: ((_ result: PumpManagerResult<StatusResponse>) -> Void)? = nil) {
 
         podComms.runSession(withName: "Get pod status") { (result) in
             do {
@@ -881,15 +914,15 @@ extension OmniBLEPumpManager {
                 case .success(let session):
                     let beepType: BeepConfigType? = self.confirmationBeeps && emitConfirmationBeep ? .bipBip : nil
                     let status = try session.getStatus(confirmationBeepType: beepType)
-                    if storeDosesOnSuccess {
-                        session.dosesForStorage({ (doses) -> Bool in
-                            self.store(doses: doses, in: session)
-                        })
-                    }
+                    session.dosesForStorage({ (doses) -> Bool in
+                        self.store(doses: doses, in: session)
+                    })
                     completion?(.success(status))
                 case .failure(let error):
+                    self.evaluateStatus() 
                     throw error
                 }
+                self.issueHeartbeatIfNeeded()
             } catch let error {
                 completion?(.failure(.communication(error as? LocalizedError)))
                 self.log.error("Failed to fetch pod status: %{public}@", String(describing: error))
@@ -1603,7 +1636,7 @@ extension OmniBLEPumpManager: PumpManager {
             return // No active pod
         case true?:
             log.default("Fetching status because pumpData is too old")
-            getPodStatus(storeDosesOnSuccess: true, emitConfirmationBeep: false) { (response) in
+            getPodStatus(emitConfirmationBeep: false) { (response) in
                 completion?(self.lastSync)
             }
         case false?:
@@ -2163,6 +2196,7 @@ extension OmniBLEPumpManager: MessageLogger {
 }
 
 extension OmniBLEPumpManager: PodCommsDelegate {
+
     func podCommsDidEstablishSession(_ podComms: PodComms) {
 
         podComms.runSession(withName: "Post-connect status fetch") { result in
@@ -2173,11 +2207,7 @@ extension OmniBLEPumpManager: PodCommsDelegate {
                 session.dosesForStorage() { (doses) -> Bool in
                     return self.store(doses: doses, in: session)
                 }
-                if self.provideHeartbeat {
-                    self.pumpDelegate.notify { (delegate) in
-                        delegate?.pumpManagerBLEHeartbeatDidFire(self)
-                    }
-                }
+                self.issueHeartbeatIfNeeded()
             case .failure:
                 // Errors can be ignored here.
                 break

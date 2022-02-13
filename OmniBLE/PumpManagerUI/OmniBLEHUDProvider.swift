@@ -39,6 +39,8 @@ internal class OmniBLEHUDProvider: NSObject, HUDProvider {
         didSet {
             if oldValue != visible && visible {
                 hudDidAppear()
+            } else if oldValue != visible && !visible {
+                stopRefreshTimer()
             }
         }
     }
@@ -66,6 +68,7 @@ internal class OmniBLEHUDProvider: NSObject, HUDProvider {
 
     func hudDidAppear() {
         updateReservoirView()
+        refresh()
         updateRefreshTimer()
     }
     
@@ -108,7 +111,7 @@ internal class OmniBLEHUDProvider: NSObject, HUDProvider {
     }
     
     private func refresh() {
-        pumpManager.getPodStatus(storeDosesOnSuccess: false, emitConfirmationBeep: false) { _ in
+        pumpManager.getPodStatus(emitConfirmationBeep: false) { _ in
             DispatchQueue.main.async {
                 self.updateReservoirView()
             }
@@ -131,8 +134,7 @@ internal class OmniBLEHUDProvider: NSObject, HUDProvider {
             return
         }
         
-        // 40 seconds is time for one unit
-        refreshTimer = Timer(timeInterval: .seconds(40) , repeats: true) { _ in
+        refreshTimer = Timer(timeInterval: .seconds(30) , repeats: true) { _ in
             self.refresh()
         }
         RunLoop.main.add(refreshTimer!, forMode: .default)
@@ -144,10 +146,8 @@ internal class OmniBLEHUDProvider: NSObject, HUDProvider {
     }
     
     private func updateRefreshTimer() {
-        if case .inProgress = pumpManager.status.bolusState, visible {
+        if visible {
             ensureRefreshTimerRunning()
-        } else {
-            stopRefreshTimer()
         }
     }
 }
