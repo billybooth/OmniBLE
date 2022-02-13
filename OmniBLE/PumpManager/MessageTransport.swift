@@ -219,7 +219,7 @@ class PodMessageTransport: MessageTransport {
         case .sentWithAcknowledgment:
             break;
         case .sentWithError(let error):
-            throw PodCommsError.unacknowledgedMessage(error: error)
+            throw PodCommsError.unacknowledgedMessage(sequenceNumber: message.sequenceNum, error: error)
         case .unsentWithError(let error):
             throw PodCommsError.commsError(error: error)
         }
@@ -229,7 +229,7 @@ class PodMessageTransport: MessageTransport {
             incrementMessageNumber() // bump the 4-bit Omnipod Message number
             return response
         } catch {
-            throw PodCommsError.unacknowledgedMessage(error: error)
+            throw PodCommsError.unacknowledgedMessage(sequenceNumber: message.sequenceNum, error: error)
         }
     }
     
