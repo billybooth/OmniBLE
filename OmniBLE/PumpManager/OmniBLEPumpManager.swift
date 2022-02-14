@@ -2034,8 +2034,7 @@ extension OmniBLEPumpManager: PodCommsDelegate {
         podComms.runSession(withName: "Post-connect status fetch") { result in
             switch result {
             case .success(let session):
-                let status = try? session.getStatus(confirmationBeepType: .none)
-
+                let _ = try? session.getStatus(confirmationBeepType: .none)
                 self.silenceAcknowledgedAlerts()
                 session.dosesForStorage() { (doses) -> Bool in
                     return self.store(doses: doses, in: session)
