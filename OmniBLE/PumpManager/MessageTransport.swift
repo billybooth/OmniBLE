@@ -204,8 +204,6 @@ class PodMessageTransport: MessageTransport {
 
         messageNumber = message.sequenceNum // reset our Omnipod message # to given value
 
-        log.default("*** Sending message seq %d", message.sequenceNum)
-
         incrementMessageNumber() // bump to match expected Omnipod message # in response
 
         let dataToSend = message.encoded()

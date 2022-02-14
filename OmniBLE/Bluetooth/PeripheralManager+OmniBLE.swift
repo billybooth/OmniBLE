@@ -45,8 +45,6 @@ extension PeripheralManager {
         
         var didSend = false
 
-        log.debug("************** starting send ")
-        
         do {
             try sendCommandType(PodCommand.RTS, timeout: 5)
             try readCommandType(PodCommand.CTS, timeout: 5)
@@ -58,7 +56,6 @@ extension PeripheralManager {
                 // Consider starting the last packet send as the point at which the message may be received by the pod.
                 // A failure after data is actually sent, but before the sendData() returns can still be received.
                 if index == packets.count - 1 {
-                    log.debug("************** marking send complete")
                     didSend = true
                 }
                 try sendData(packet.toData(), timeout: 5)
@@ -69,14 +66,11 @@ extension PeripheralManager {
         }
         catch {
             if didSend {
-                log.debug("************** sent with error")
                 return .sentWithError(error)
             } else {
-                log.debug("************** unsent with error")
                 return .unsentWithError(error)
             }
         }
-        log.debug("************** sent with acknowledgement")
         return .sentWithAcknowledgment
     }
     

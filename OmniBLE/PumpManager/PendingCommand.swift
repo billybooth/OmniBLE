@@ -8,7 +8,6 @@
 
 import Foundation
 import LoopKit
-import OmniKit
 
 
 public enum StartProgram: RawRepresentable {

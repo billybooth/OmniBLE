@@ -1889,7 +1889,7 @@ extension OmniBLEPumpManager: PumpManager {
         let (added, removed) = oldAlerts.compare(to: newAlerts)
         for slot in added {
             if let podAlert = podState.configuredAlerts[slot] {
-                log.default("*** Alert slot triggered: %{public}@", String(describing: slot))
+                log.default("Alert slot triggered: %{public}@", String(describing: slot))
                 if let pumpManagerAlert = getPumpManagerAlert(for: podAlert, slot: slot) {
                     issueAlert(alert: pumpManagerAlert)
                 } else {
@@ -1900,7 +1900,7 @@ extension OmniBLEPumpManager: PumpManager {
             }
         }
         for alert in removed {
-            log.default("*** Alert slot cleared: %{public}@", String(describing: alert))
+            log.default("Alert slot cleared: %{public}@", String(describing: alert))
         }
     }
 

@@ -231,8 +231,8 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
             self.automatic = false
         }
 
-        if let isLowTemp = rawValue["isLowTemp"] as? Bool {
-            self.isHighTemp = isLowTemp
+        if let isHighTemp = rawValue["isHighTemp"] as? Bool {
+            self.isHighTemp = isHighTemp
         } else {
             self.isHighTemp = false
         }
@@ -245,7 +245,7 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
             "startTime": startTime,
             "scheduledCertainty": scheduledCertainty.rawValue,
             "automatic": automatic,
-            "isLowTemp": isHighTemp,
+            "isHighTemp": isHighTemp,
         ]
         
         if let scheduledUnits = scheduledUnits {
