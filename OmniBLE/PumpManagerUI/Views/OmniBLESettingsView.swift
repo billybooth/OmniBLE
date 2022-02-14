@@ -386,13 +386,21 @@ struct OmniBLESettingsView: View  {
             }
         )
     }
-    
+
+    private func onSaveConfidenceReminders(_ preference: BeepPreference, _ completion: @escaping (_ error: Error?) -> Void) {
+    }
+
+
     private var confidenceRemindersSection: some View {
         Section(footer: FrameworkLocalText("When enabled, your pod will audibly beep when you start a bolus, complete a bolus, and when you resume after suspending insulin delivery.", comment: "Descriptive text for confidence reminders section"))
         {
+            NavigationLink(destination: BeepPreferenceSelectionView(initialValue: .allCommands, onSave: onSaveConfidenceReminders)) {
+                FrameworkLocalText("Confidence Reminders", comment: "Text for confidence reminders navigation link").foregroundColor(Color.primary)
+            }
+
             if self.viewModel.changingConfirmationBeeps {
                 HStack {
-                    Text("Confidence Reminders")
+                    Text("Old Confidence Reminders")
                     Spacer()
                     ActivityIndicator(isAnimating: .constant(true), style: .medium)
                 }
