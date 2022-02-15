@@ -13,16 +13,28 @@ import LoopKitUI
 struct BeepPreferenceSelectionView: View {
 
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @Environment(\.presentationMode) var presentationMode: Binding<PresentationMode>
 
+    private var initialValue: BeepPreference
     @State private var preference: BeepPreference
-    private var onSave: ((_ selectedValue: BeepPreference, _ completion: @escaping (_ error: Error?) -> Void) -> Void)?
+    private var onSave: ((_ selectedValue: BeepPreference, _ completion: @escaping (_ error: LocalizedError?) -> Void) -> Void)?
 
-    init(initialValue: BeepPreference, onSave: @escaping (_ selectedValue: BeepPreference, _ completion: @escaping (_ error: Error?) -> Void) -> Void) {
+    @State private var alertIsPresented: Bool = false
+    @State private var error: LocalizedError?
+    @State private var saving: Bool = false
+
+
+    init(initialValue: BeepPreference, onSave: @escaping (_ selectedValue: BeepPreference, _ completion: @escaping (_ error: LocalizedError?) -> Void) -> Void) {
+        self.initialValue = initialValue
         self._preference = State(initialValue: initialValue)
         self.onSave = onSave
     }
 
     var body: some View {
+        contentWithCancel
+    }
+
+    var content: some View {
         VStack {
             List {
                 Section {
@@ -53,12 +65,22 @@ struct BeepPreferenceSelectionView: View {
             }
             VStack {
                 Button(action: {
-                    print("here")
+                    saving = true
+                    onSave?(preference) { (error) in
+                        saving = false
+                        if let error = error {
+                            self.error = error
+                            self.alertIsPresented = true
+                        } else {
+                            self.presentationMode.wrappedValue.dismiss()
+                        }
+                    }
                 }) {
-                    Text(LocalizedString("Save", comment: "Text of save button on BeepPreferenceSelectionView"))
+                    Text(saveButtonText)
                         .actionButtonStyle(.primary)
                 }
                 .padding()
+                .disabled(saving || !valueChanged)
             }
             .padding(self.horizontalSizeClass == .regular ? .bottom : [])
             .background(Color(UIColor.secondarySystemGroupedBackground).shadow(radius: 5))
@@ -67,7 +89,49 @@ struct BeepPreferenceSelectionView: View {
         .insetGroupedListStyle()
         .navigationTitle("Confidence Reminders")
         .navigationBarTitleDisplayMode(.inline)
+        .alert(isPresented: $alertIsPresented, content: { alert(error: error) })
     }
+
+    private var contentWithCancel: some View {
+        if saving {
+            return AnyView(content
+                .navigationBarBackButtonHidden(true)
+            )
+        } else if valueChanged {
+            return AnyView(content
+                .navigationBarBackButtonHidden(true)
+                .navigationBarItems(leading: cancelButton)
+            )
+        } else {
+            return AnyView(content)
+        }
+    }
+
+    private var cancelButton: some View {
+        Button(action: { self.presentationMode.wrappedValue.dismiss() } ) {
+            Text(LocalizedString("Cancel", comment: "Button title for cancelling low reservoir reminder edit"))
+        }
+    }
+
+    var saveButtonText: String {
+        if saving {
+            return LocalizedString("Saving...", comment: "button title for saving low reservoir reminder while saving")
+        } else {
+            return LocalizedString("Save", comment: "button title for saving low reservoir reminder")
+        }
+    }
+
+    private var valueChanged: Bool {
+        return preference != initialValue
+    }
+
+    private func alert(error: Error?) -> SwiftUI.Alert {
+        return SwiftUI.Alert(
+            title: Text(LocalizedString("Failed to update confidence reminder preference.", comment: "Alert title for error when updating confidence reminder preference")),
+            message: Text(error?.localizedDescription ?? "No Error")
+        )
+    }
+
 }
 
 struct ContentView_Previews: PreviewProvider {

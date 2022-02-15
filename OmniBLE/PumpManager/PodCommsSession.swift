@@ -660,10 +660,6 @@ public class PodCommsSession {
         }
     }
 
-    public func testingCommands(confirmationBeepType: BeepConfigType? = nil) throws {
-        try cancelNone(confirmationBeepType: confirmationBeepType) // reads status & verifies nonce by doing a cancel none
-    }
-    
     public func setTime(timeZone: TimeZone, basalSchedule: BasalSchedule, date: Date, acknowledgementBeep: Bool = false, completionBeep: Bool = false) throws -> StatusResponse {
         let result = cancelDelivery(deliveryType: .all)
         switch result {

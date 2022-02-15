@@ -387,7 +387,10 @@ struct OmniBLESettingsView: View  {
         )
     }
 
-    private func onSaveConfidenceReminders(_ preference: BeepPreference, _ completion: @escaping (_ error: Error?) -> Void) {
+    private func onSaveConfidenceReminders(_ preference: BeepPreference, _ completion: @escaping (_ error: LocalizedError?) -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(3)) {
+            completion(PodCommsError.noResponse)
+        }
     }
 
 

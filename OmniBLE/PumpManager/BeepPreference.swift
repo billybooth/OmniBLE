@@ -8,7 +8,7 @@
 
 import Foundation
 
-enum BeepPreference: CaseIterable {
+public enum BeepPreference: Int, CaseIterable {
     case silent
     case allCommands
     case manualCommands
@@ -33,5 +33,13 @@ enum BeepPreference: CaseIterable {
         case .manualCommands:
             return LocalizedString("Confidence reminders will only sounds for commands you initiate. When Loop automatically adjusts delivery, the pod will remain silent.", comment: "Description for BeepPreference.manualCommands")
         }
+    }
+
+    var shouldBeepForManualCommand: Bool {
+        return self == .allCommands || self == .manualCommands
+    }
+
+    var shouldBeepForAutomaticCommand: Bool {
+        return self == .allCommands
     }
 }

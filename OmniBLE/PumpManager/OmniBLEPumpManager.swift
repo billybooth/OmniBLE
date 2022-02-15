@@ -431,7 +431,7 @@ extension OmniBLEPumpManager {
         return lastPodCommDate.timeIntervalSince(activationTime)
     }
 
-    public var confirmationBeeps: Bool {
+    public var beepPreference: BeepPreference {
         get {
             return state.confirmationBeeps
         }
@@ -896,23 +896,13 @@ extension OmniBLEPumpManager {
         }
     }
 
-    public func refreshStatus(emitConfirmationBeep: Bool = false, completion: ((_ result: PumpManagerResult<StatusResponse>) -> Void)? = nil) {
-        guard self.hasActivePod else {
-            completion?(.failure(.deviceState(OmniBLEPumpManagerError.noPodPaired)))
-            return
-        }
-
-        self.getPodStatus(emitConfirmationBeep: emitConfirmationBeep, completion: completion)
-    }
-
-    public func getPodStatus(emitConfirmationBeep: Bool, completion: ((_ result: PumpManagerResult<StatusResponse>) -> Void)? = nil) {
+    public func getPodStatus(completion: ((_ result: PumpManagerResult<StatusResponse>) -> Void)? = nil) {
 
         podComms.runSession(withName: "Get pod status") { (result) in
             do {
                 switch result {
                 case .success(let session):
-                    let beepType: BeepConfigType? = self.confirmationBeeps && emitConfirmationBeep ? .bipBip : nil
-                    let status = try session.getStatus(confirmationBeepType: beepType)
+                    let status = try session.getStatus(confirmationBeepType: nil)
                     session.dosesForStorage({ (doses) -> Bool in
                         self.store(doses: doses, in: session)
                     })
@@ -948,7 +938,7 @@ extension OmniBLEPumpManager {
             }
 
             do {
-                let beepType: BeepConfigType? = self.confirmationBeeps ? .bipBip : nil
+                let beepType: BeepConfigType? = self.beepPreference.shouldBeepForManualCommand ? .bipBip : nil
                 let alerts = try session.acknowledgePodAlerts(alerts: alertsToAcknowledge, confirmationBeepType: beepType)
                 completion(alerts)
             } catch {
@@ -974,7 +964,7 @@ extension OmniBLEPumpManager {
             switch result {
             case .success(let session):
                 do {
-                    let beep = self.confirmationBeeps
+                    let beep = self.beepPreference.shouldBeepForManualCommand
                     let _ = try session.setTime(timeZone: timeZone, basalSchedule: self.state.basalSchedule, date: Date(), acknowledgementBeep: beep, completionBeep: beep)
                     self.clearSuspendReminder()
                     self.setState { (state) in
@@ -1032,7 +1022,7 @@ extension OmniBLEPumpManager {
                     case .success:
                         break
                     }
-                    let beep = self.confirmationBeeps
+                    let beep = self.beepPreference.shouldBeepForManualCommand
                     let _ = try session.setBasalSchedule(schedule: schedule, scheduleOffset: scheduleOffset, acknowledgementBeep: beep, completionBeep: beep)
                     self.clearSuspendReminder()
 
@@ -1086,55 +1076,6 @@ extension OmniBLEPumpManager {
         #endif
     }
 
-    public func readPodStatus(completion: @escaping (Result<DetailedStatus, Error>) -> Void) {
-        // use hasSetupPod to be able to read pod info from a faulted Pod
-        guard self.hasSetupPod else {
-            completion(.failure(OmniBLEPumpManagerError.noPodPaired))
-            return
-        }
-
-        podComms.runSession(withName: "Read pod status") { (result) in
-            do {
-                switch result {
-                case .success(let session):
-                    let beepType: BeepConfigType? = self.confirmationBeeps ? .bipBip : nil
-                    let detailedStatus = try session.getDetailedStatus(confirmationBeepType: beepType)
-                    session.dosesForStorage({ (doses) -> Bool in
-                        self.store(doses: doses, in: session)
-                    })
-                    completion(.success(detailedStatus))
-                case .failure(let error):
-                    completion(.failure(error))
-                }
-            } catch let error {
-                completion(.failure(error))
-            }
-        }
-    }
-
-    public func testingCommands(completion: @escaping (Error?) -> Void) {
-        // use hasSetupPod so the user can see any fault info and post fault commands can be attempted
-        guard self.hasSetupPod else {
-            completion(OmniBLEPumpManagerError.noPodPaired)
-            return
-        }
-
-        self.podComms.runSession(withName: "Testing Commands") { (result) in
-            switch result {
-            case .success(let session):
-                do {
-                    let beepType: BeepConfigType? = self.confirmationBeeps ? .beepBeepBeep : nil
-                    try session.testingCommands(confirmationBeepType: beepType)
-                    completion(nil)
-                } catch let error {
-                    completion(error)
-                }
-            case .failure(let error):
-                completion(error)
-            }
-        }
-    }
-
     public func playTestBeeps(completion: @escaping (Error?) -> Void) {
         guard self.hasActivePod else {
             completion(OmniBLEPumpManagerError.noPodPaired)
@@ -1149,9 +1090,9 @@ extension OmniBLEPumpManager {
         self.podComms.runSession(withName: "Play Test Beeps") { (result) in
             switch result {
             case .success(let session):
-                let basalCompletionBeep = self.confirmationBeeps
+                let basalCompletionBeep = self.beepPreference
                 let tempBasalCompletionBeep = false
-                let bolusCompletionBeep = self.confirmationBeeps
+                let bolusCompletionBeep = self.beepPreference
                 let result = session.beepConfig(beepConfigType: .bipBeepBipBeepBipBeepBipBeep, basalCompletionBeep: basalCompletionBeep, tempBasalCompletionBeep: tempBasalCompletionBeep, bolusCompletionBeep: bolusCompletionBeep)
 
                 switch result {
@@ -1592,7 +1533,7 @@ extension OmniBLEPumpManager: PumpManager {
 
             do {
                 let scheduleOffset = self.state.timeZone.scheduleOffset(forDate: Date())
-                let beep = self.confirmationBeeps
+                let beep = self.beepPreference
                 let _ = try session.resumeBasal(schedule: self.state.basalSchedule, scheduleOffset: scheduleOffset, acknowledgementBeep: beep, completionBeep: beep)
                 self.clearSuspendReminder()
                 session.dosesForStorage() { (doses) -> Bool in
@@ -1635,7 +1576,7 @@ extension OmniBLEPumpManager: PumpManager {
             return // No active pod
         case true?:
             log.default("Fetching status because pumpData is too old")
-            getPodStatus(emitConfirmationBeep: false) { (response) in
+            getPodStatus() { (response) in
                 completion?(self.lastSync)
             }
         case false?:
@@ -1688,7 +1629,7 @@ extension OmniBLEPumpManager: PumpManager {
             if podStatus.deliveryStatus == .suspended {
                 do {
                     let scheduleOffset = self.state.timeZone.scheduleOffset(forDate: Date())
-                    let beep = self.confirmationBeeps
+                    let beep = self.beepPreference
                     let podStatus = try session.resumeBasal(schedule: self.state.basalSchedule, scheduleOffset: scheduleOffset, acknowledgementBeep: beep, completionBeep: beep)
                     self.clearSuspendReminder()
                     guard podStatus.deliveryStatus.bolusing == false else {
@@ -1705,7 +1646,7 @@ extension OmniBLEPumpManager: PumpManager {
                 return
             }
 
-            let beep = self.confirmationBeeps
+            let beep = self.beepPreference
             let result = session.bolus(units: enactUnits, acknowledgementBeep: beep, completionBeep: beep)
             session.dosesForStorage() { (doses) -> Bool in
                 return self.store(doses: doses, in: session)
