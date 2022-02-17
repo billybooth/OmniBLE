@@ -16,7 +16,6 @@ enum DashSettingsViewAlert {
     case suspendError(Error)
     case resumeError(Error)
     case syncTimeError(OmniBLEPumpManagerError)
-    case changeConfirmationBeepsError(OmniBLEPumpManagerError)
 }
 
 public enum ReservoirLevelHighlightState: String, Equatable {
@@ -38,11 +37,9 @@ class OmniBLESettingsViewModel: ObservableObject {
 
     @Published var expiresAt: Date?
 
-    @Published var changingConfirmationBeeps: Bool = false
-
-    var confirmationBeeps: Bool {
+    var beepPreference: BeepPreference {
         get {
-            pumpManager.confirmationBeeps
+            pumpManager.beepPreference
         }
     }
     
@@ -279,15 +276,11 @@ class OmniBLESettingsViewModel: ObservableObject {
             }
         }
     }
- 
-    func setConfirmationBeeps(enabled: Bool) {
-        self.changingConfirmationBeeps = true
-        pumpManager.setConfirmationBeeps(enabled: enabled) { error in
+
+    func setConfirmationBeeps(_ preference: BeepPreference, _ completion: @escaping (_ error: LocalizedError?) -> Void) {
+        pumpManager.setConfirmationBeeps(newPreference: preference) { error in
             DispatchQueue.main.async {
-                self.changingConfirmationBeeps = false
-                if let error = error {
-                    self.activeAlert = .changeConfirmationBeepsError(error)
-                }
+                completion(error)
             }
         }
     }
@@ -429,7 +422,12 @@ extension OmniBLEPumpManager {
             case .exceededMaximumPodLife80Hrs:
                 return .expired
             default:
-                return .timeRemaining(Pod.nominalPodLife - (status.faultEventTimeSinceActivation ?? Pod.nominalPodLife))
+                let remaining = Pod.nominalPodLife - (status.faultEventTimeSinceActivation ?? Pod.nominalPodLife)
+                if remaining > 0 {
+                    return .timeRemaining(remaining)
+                } else {
+                    return .expired
+                }
             }
 
         case .noPod:
@@ -452,7 +450,7 @@ extension OmniBLEPumpManager {
     }
     
     var basalDeliveryRate: Double? {
-        if let tempBasal = state.podState?.unfinalizedTempBasal, !tempBasal.isFinished {
+        if let tempBasal = state.podState?.unfinalizedTempBasal, !tempBasal.isFinished() {
             return tempBasal.rate
         } else {
             switch state.podState?.suspendState {

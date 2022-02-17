@@ -39,8 +39,6 @@ public struct OmniBLEPumpManagerState: RawRepresentable, Equatable {
     
     public var podAttachmentConfirmed: Bool
     
-    public var pendingCommand: PendingCommand?
-
     public var activeAlerts: Set<PumpManagerAlert>
     
     public var alertsWithPendingAcknowledgment: Set<PumpManagerAlert>
@@ -199,12 +197,6 @@ public struct OmniBLEPumpManagerState: RawRepresentable, Equatable {
             self.lastPumpDataReportDate = lastPumpDataReportDate
         }
         
-        if let rawPendingCommand = rawValue["pendingCommand"] as? PendingCommand.RawValue {
-            self.pendingCommand = PendingCommand(rawValue: rawPendingCommand)
-        } else {
-            self.pendingCommand = nil
-        }
-
         self.activeAlerts = []
         if let rawActiveAlerts = rawValue["activeAlerts"] as? [PumpManagerAlert.RawValue] {
             for rawAlert in rawActiveAlerts {
@@ -231,7 +223,7 @@ public struct OmniBLEPumpManagerState: RawRepresentable, Equatable {
             "timeZone": timeZone.secondsFromGMT(),
             "basalSchedule": basalSchedule.rawValue,
             "unstoredDoses": unstoredDoses.map { $0.rawValue },
-            "confirmationBeeps": confirmationBeeps,
+            "confirmationBeeps": confirmationBeeps.rawValue,
             "activeAlerts": activeAlerts.map { $0.rawValue },
             "podAttachmentConfirmed": podAttachmentConfirmed,
             "acknowledgedTimeOffsetAlert": acknowledgedTimeOffsetAlert,
@@ -246,7 +238,6 @@ public struct OmniBLEPumpManagerState: RawRepresentable, Equatable {
         value["scheduledExpirationReminderOffset"] = scheduledExpirationReminderOffset
         value["defaultExpirationReminderOffset"] = defaultExpirationReminderOffset
         value["lowReservoirReminderValue"] = lowReservoirReminderValue
-        value["pendingCommand"] = pendingCommand?.rawValue
         value["lastPumpDataReportDate"] = lastPumpDataReportDate
         return value
     }
@@ -290,7 +281,6 @@ extension OmniBLEPumpManagerState: CustomDebugStringConvertible {
             "* defaultExpirationReminderOffset: \(defaultExpirationReminderOffset)",
             "* lowReservoirReminderValue: \(lowReservoirReminderValue)",
             "* podAttachmentConfirmed: \(podAttachmentConfirmed)",
-            "* pendingCommand: \(String(describing: pendingCommand))",
             "* activeAlerts: \(activeAlerts)",
             "* alertsWithPendingAcknowledgment: \(alertsWithPendingAcknowledgment)",
             "* acknowledgedTimeOffsetAlert: \(acknowledgedTimeOffsetAlert)",
