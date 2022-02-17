@@ -46,8 +46,8 @@ extension PeripheralManager {
         var didSend = false
 
         do {
-            try sendCommandType(PodCommand.RTS, timeout: 5)
-            try readCommandType(PodCommand.CTS, timeout: 5)
+            try requestToSend()
+            try waitForCommand(PodCommand.CTS, timeout: 5)
 
             let splitter = PayloadSplitter(payload: message.asData(forEncryption: forEncryption))
             let packets = splitter.splitInPackets()
@@ -62,7 +62,7 @@ extension PeripheralManager {
                 try self.peekForNack()
             }
 
-            try readCommandType(PodCommand.SUCCESS, timeout: 5)
+            try waitForCommand(PodCommand.SUCCESS, timeout: 5)
         }
         catch {
             if didSend {
@@ -81,23 +81,23 @@ extension PeripheralManager {
         var packet: MessagePacket?
 
         do {
-            try readCommandType(PodCommand.RTS)
+            try waitForCommand(PodCommand.RTS)
             try sendCommandType(PodCommand.CTS)
 
             var expected: UInt8 = 0
 
-            let firstPacket = try readData(sequence: expected, timeout: 5)
+            let firstPacket = try waitForData(sequence: expected, timeout: 5)
 
             let joiner = try PayloadJoiner(firstPacket: firstPacket)
 
             for _ in 1...joiner.fullFragments {
                 expected += 1
-                let packet = try readData(sequence: expected, timeout: 5)
+                let packet = try waitForData(sequence: expected, timeout: 5)
                 try joiner.accumulate(packet: packet)
             }
             if (joiner.oneExtraPacket) {
                 expected += 1
-                let packet = try readData(sequence: expected, timeout: 5)
+                let packet = try waitForData(sequence: expected, timeout: 5)
                 try joiner.accumulate(packet: packet)
             }
             let fullPayload = try joiner.finalize()
@@ -117,11 +117,22 @@ extension PeripheralManager {
     func peekForNack() throws -> Void {
         dispatchPrecondition(condition: .onQueue(queue))
 
+        // Lock to protect cmdQueue
+        queueLock.lock()
+        defer {
+            queueLock.unlock()
+        }
+
         if cmdQueue.contains(where: { cmd in
             return cmd[0] == PodCommand.NACK.rawValue
         }) {
             throw PeripheralManagerError.nack
         }
+    }
+
+    func requestToSend() throws {
+        clearCommsQueues()
+        try sendCommandType(.RTS, timeout: 5)
     }
     
     /// - Throws: PeripheralManagerError
@@ -131,16 +142,16 @@ extension PeripheralManager {
         guard let characteristic = peripheral.getCommandCharacteristic() else {
             throw PeripheralManagerError.notReady
         }
-        log.default("Writing Command Value %{public}@", Data([command.rawValue]).hexadecimalString)
+        log.default("CMD >>> %{public}@", Data([command.rawValue]).hexadecimalString)
         
         try writeValue(Data([command.rawValue]), for: characteristic, type: .withResponse, timeout: timeout)
     }
-    
+
     /// - Throws: PeripheralManagerError
-    func readCommandType(_ command: PodCommand, timeout: TimeInterval = 5) throws {
+    func waitForCommand(_ command: PodCommand, timeout: TimeInterval = 5) throws {
         dispatchPrecondition(condition: .onQueue(queue))
 
-        log.default("Read Command %{public}@", Data([command.rawValue]).hexadecimalString)
+        log.default("waitForCommand %{public}@", Data([command.rawValue]).hexadecimalString)
         
         // Wait for data to be read.
         queueLock.lock()
@@ -154,13 +165,22 @@ extension PeripheralManager {
             commandLock.unlock()
         }
 
+        // Lock to protect dataQueue
+        queueLock.lock()
+        defer {
+            queueLock.unlock()
+        }
+
         if (cmdQueue.count > 0) {
             let value = cmdQueue.remove(at: 0)
 
             if command.rawValue != value[0] {
-                log.error("Data Wrong command.rawValue != value[0] (%d != %d); data=%@", command.rawValue, value[0], value.hexadecimalString)
+                log.error("waitForCommand failed. rawValue != value[0] (%d != %d); data=%@", command.rawValue, value[0], value.hexadecimalString)
                 throw PeripheralManagerError.incorrectResponse
             }
+
+            log.default("waitForCommand success %{public}@", value.hexadecimalString)
+
             return
         }
 
@@ -175,15 +195,17 @@ extension PeripheralManager {
             throw PeripheralManagerError.notReady
         }
         
-        log.default("Writing Data Value %{public}@", value.hexadecimalString)
+        log.default("DATA >>> %{public}@", value.hexadecimalString)
         
         try writeValue(value, for: characteristic, type: .withResponse, timeout: timeout)
     }
 
     /// - Throws: PeripheralManagerError
-    func readData(sequence: UInt8, timeout: TimeInterval) throws -> Data {
+    func waitForData(sequence: UInt8, timeout: TimeInterval) throws -> Data {
         dispatchPrecondition(condition: .onQueue(queue))
-        
+
+        log.default("waitForData sequence %02x", sequence)
+
         // Wait for data to be read.
         queueLock.lock()
         if (dataQueue.count == 0) {
@@ -195,14 +217,21 @@ extension PeripheralManager {
         defer {
             commandLock.unlock()
         }
-        
+
+        // Lock to protect dataQueue
+        queueLock.lock()
+        defer {
+            queueLock.unlock()
+        }
+
         if (dataQueue.count > 0) {
             let data = dataQueue.remove(at: 0)
             
             if (data[0] != sequence) {
-                log.error("Data Wrong data[0] != sequence (%d != %d).", data[0], sequence)
+                log.error("waitForData failed data[0] != sequence (%d != %d).", data[0], sequence)
                 throw PeripheralManagerError.incorrectResponse
             }
+            log.default("waitForData success %{public}@", data.hexadecimalString)
             return data
         }
         
