@@ -75,35 +75,29 @@ extension PeripheralManager {
     }
     
     /// - Throws: PeripheralManagerError
-    func readMessage(_ readRTS: Bool = true) throws -> MessagePacket? {
+    func readMessage() throws -> MessagePacket? {
         dispatchPrecondition(condition: .onQueue(queue))
 
         var packet: MessagePacket?
 
         do {
-            if (readRTS) {
-                try readCommandType(PodCommand.RTS)
-            }
-            
+            try readCommandType(PodCommand.RTS)
             try sendCommandType(PodCommand.CTS)
 
             var expected: UInt8 = 0
+
             let firstPacket = try readData(sequence: expected, timeout: 5)
 
-            guard let _ = firstPacket else {
-                return nil
-            }
-
-            let joiner = try PayloadJoiner(firstPacket: firstPacket!)
+            let joiner = try PayloadJoiner(firstPacket: firstPacket)
 
             for _ in 1...joiner.fullFragments {
                 expected += 1
-                guard let packet = try readData(sequence: expected, timeout: 5) else { return nil }
+                let packet = try readData(sequence: expected, timeout: 5)
                 try joiner.accumulate(packet: packet)
             }
             if (joiner.oneExtraPacket) {
                 expected += 1
-                guard let packet = try readData(sequence: expected, timeout: 5) else { return nil }
+                let packet = try readData(sequence: expected, timeout: 5)
                 try joiner.accumulate(packet: packet)
             }
             let fullPayload = try joiner.finalize()
@@ -164,7 +158,7 @@ extension PeripheralManager {
             let value = cmdQueue.remove(at: 0)
 
             if command.rawValue != value[0] {
-                log.error("Data Wrong command.rawValue != value[0] (%d != %d).", command.rawValue, value[0])
+                log.error("Data Wrong command.rawValue != value[0] (%d != %d); data=%@", command.rawValue, value[0], value.hexadecimalString)
                 throw PeripheralManagerError.incorrectResponse
             }
             return
@@ -187,7 +181,7 @@ extension PeripheralManager {
     }
 
     /// - Throws: PeripheralManagerError
-    func readData(sequence: UInt8, timeout: TimeInterval) throws -> Data? {
+    func readData(sequence: UInt8, timeout: TimeInterval) throws -> Data {
         dispatchPrecondition(condition: .onQueue(queue))
         
         // Wait for data to be read.
