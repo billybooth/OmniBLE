@@ -10,36 +10,36 @@ import Foundation
 
 public enum BeepPreference: Int, CaseIterable {
     case silent
-    case allCommands
     case manualCommands
+    case extended
 
     var title: String {
         switch self {
         case .silent:
-            return LocalizedString("None (silent)", comment: "Title string for BeepPreference.silent")
-        case .allCommands:
-            return LocalizedString("All Commands", comment: "Title string for BeepPreference.allBeeps")
+            return LocalizedString("Disabled", comment: "Title string for BeepPreference.silent")
         case .manualCommands:
-            return LocalizedString("Manual Commands", comment: "Title string for BeepPreference.manualCommands")
+            return LocalizedString("Enabled", comment: "Title string for BeepPreference.manualCommands")
+        case .extended:
+            return LocalizedString("Extended", comment: "Title string for BeepPreference.extended")
         }
     }
 
     var description: String {
         switch self {
         case .silent:
-            return LocalizedString("You will not hear reminders for any commands sent. Alerts and alarms will still sound.", comment: "Description for BeepPreference.silent")
-        case .allCommands:
-            return LocalizedString("All delivery commands, like bolus, temp basal, suspend, resume, etc will generate confidence reminders, including ones issued automatically from Loop", comment: "Description for BeepPreference.allCommands")
+            return LocalizedString("No confidence reminders are used.", comment: "Description for BeepPreference.silent")
         case .manualCommands:
-            return LocalizedString("Confidence reminders will only sounds for commands you initiate. When Loop automatically adjusts delivery, the pod will remain silent.", comment: "Description for BeepPreference.manualCommands")
+            return LocalizedString("Confidence reminders will sound for commands you initiate, like bolus, temp basal, suspend, resume, etc. When Loop automatically adjusts delivery, the pod will remain silent.", comment: "Description for BeepPreference.manualCommands")
+        case .extended:
+            return LocalizedString("All manual delivery commands will beep, as well as automatic boluses.", comment: "Description for BeepPreference.extended")
         }
     }
 
     var shouldBeepForManualCommand: Bool {
-        return self == .allCommands || self == .manualCommands
+        return self == .extended || self == .manualCommands
     }
 
-    var shouldBeepForAutomaticCommand: Bool {
-        return self == .allCommands
+    var shouldBeepForAutomaticBolus: Bool {
+        return self == .extended
     }
 }

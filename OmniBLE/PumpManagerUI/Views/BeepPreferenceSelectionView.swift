@@ -137,7 +137,7 @@ struct BeepPreferenceSelectionView: View {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            BeepPreferenceSelectionView(initialValue: .allCommands) { selectedValue, completion in
+            BeepPreferenceSelectionView(initialValue: .extended) { selectedValue, completion in
                 print("Selected: \(selectedValue)")
                 completion(nil)
             }

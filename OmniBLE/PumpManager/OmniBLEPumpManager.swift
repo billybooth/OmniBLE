@@ -1090,9 +1090,9 @@ extension OmniBLEPumpManager {
         self.podComms.runSession(withName: "Play Test Beeps") { (result) in
             switch result {
             case .success(let session):
-                let basalCompletionBeep = self.beepPreference
+                let basalCompletionBeep = self.beepPreference.shouldBeepForManualCommand
                 let tempBasalCompletionBeep = false
-                let bolusCompletionBeep = self.beepPreference
+                let bolusCompletionBeep = self.beepPreference.shouldBeepForManualCommand
                 let result = session.beepConfig(beepConfigType: .bipBeepBipBeepBipBeepBipBeep, basalCompletionBeep: basalCompletionBeep, tempBasalCompletionBeep: tempBasalCompletionBeep, bolusCompletionBeep: bolusCompletionBeep)
 
                 switch result {
@@ -1125,7 +1125,7 @@ extension OmniBLEPumpManager {
             case .success(let session):
                 do {
                     // read the most recent 50 entries from the pulse log
-                    let beepType: BeepConfigType? = self.confirmationBeeps ? .bipBeeeeep : nil
+                    let beepType: BeepConfigType? = self.state.confirmationBeeps.shouldBeepForManualCommand ? .bipBeeeeep : nil
                     let podInfoResponse = try session.readPodInfo(podInfoResponseSubType: .pulseLogRecent, confirmationBeepType: beepType)
                     guard let podInfoPulseLogRecent = podInfoResponse.podInfo as? PodInfoPulseLogRecent else {
                         self.log.error("Unable to decode PulseLogRecent: %s", String(describing: podInfoResponse))
@@ -1144,24 +1144,23 @@ extension OmniBLEPumpManager {
         }
     }
 
-    public func setConfirmationBeeps(enabled: Bool, completion: @escaping (OmniBLEPumpManagerError?) -> Void) {
-        self.log.default("Set Confirmation Beeps to %s", String(describing: enabled))
+    public func setConfirmationBeeps(newPreference: BeepPreference, completion: @escaping (OmniBLEPumpManagerError?) -> Void) {
+        self.log.default("Set Confirmation Beeps to %s", String(describing: newPreference))
         guard self.hasActivePod else {
             self.setState { state in
-                state.confirmationBeeps = enabled // set here to allow changes on a faulted Pod
+                state.confirmationBeeps = newPreference // set here to allow changes on a faulted Pod
             }
             completion(nil)
             return
         }
 
-        let name: String = enabled ? "Enable Confirmation Beeps" : "Disable Confirmation Beeps"
-        self.podComms.runSession(withName: name) { (result) in
+        self.podComms.runSession(withName: "Set Confirmation Beeps Preference") { (result) in
             switch result {
             case .success(let session):
-                let beepConfigType: BeepConfigType = enabled ? .bipBip : .noBeep
-                let basalCompletionBeep = enabled
+                let beepConfigType: BeepConfigType = newPreference.shouldBeepForManualCommand ? .bipBip : .noBeep
+                let basalCompletionBeep = newPreference.shouldBeepForManualCommand
                 let tempBasalCompletionBeep = false
-                let bolusCompletionBeep = enabled
+                let bolusCompletionBeep = newPreference.shouldBeepForManualCommand
 
                 // enable/disable Pod completion beeps for any in-progress insulin delivery
                 let result = session.beepConfig(beepConfigType: beepConfigType, basalCompletionBeep: basalCompletionBeep, tempBasalCompletionBeep: tempBasalCompletionBeep, bolusCompletionBeep: bolusCompletionBeep)
@@ -1169,7 +1168,7 @@ extension OmniBLEPumpManager {
                 switch result {
                 case .success:
                     self.setState { state in
-                        state.confirmationBeeps = enabled // set here to allow changes on a faulted Pod
+                        state.confirmationBeeps = newPreference
                     }
                     completion(nil)
                 case .failure(let error):
