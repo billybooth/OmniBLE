@@ -102,7 +102,8 @@ class OmniBLESettingsViewModel: ObservableObject {
 
     @Published var podCommState: PodCommState
 
-    
+    @Published var insulinType: InsulinType?
+
     var timeZone: TimeZone {
         return pumpManager.status.timeZone
     }
@@ -201,6 +202,7 @@ class OmniBLESettingsViewModel: ObservableObject {
         podCommState = self.pumpManager.podCommState
         beepPreference = self.pumpManager.beepPreference
         podConnected = self.pumpManager.isConnected
+        insulinType = self.pumpManager.insulinType
         pumpManager.addPodStateObserver(self, queue: DispatchQueue.main)
         
         // Trigger refresh
@@ -290,6 +292,10 @@ class OmniBLESettingsViewModel: ObservableObject {
                 completion(error)
             }
         }
+    }
+
+    func didChangeInsulinType(_ newType: InsulinType?) {
+        self.pumpManager.insulinType = newType
     }
     
     var podOk: Bool {
@@ -419,6 +425,7 @@ extension OmniBLESettingsViewModel: PodStateObserver {
         expirationReminderDate = self.pumpManager.scheduledExpirationReminder
         podCommState = self.pumpManager.podCommState
         beepPreference = self.pumpManager.beepPreference
+        insulinType = self.pumpManager.insulinType
     }
 
     func podConnectionStateDidChange(isConnected: Bool) {
