@@ -103,9 +103,12 @@ extension PeripheralManager {
             let fullPayload = try joiner.finalize()
             try  sendCommandType(PodCommand.SUCCESS)
             packet = try MessagePacket.parse(payload: fullPayload)
-        }
-        catch {
+        } catch {
             log.error("Error reading message: %{public}@", error.localizedDescription)
+            if let error = error as? PeripheralManagerError, error.isSymptomaticOfUnresponsivePod {
+                log.error("Disconnecting due to error while reading pod response")
+                central?.cancelPeripheralConnection(self.peripheral)
+            }
             try? sendCommandType(PodCommand.NACK)
             throw PeripheralManagerError.incorrectResponse
         }
@@ -151,7 +154,7 @@ extension PeripheralManager {
     func waitForCommand(_ command: PodCommand, timeout: TimeInterval = 5) throws {
         dispatchPrecondition(condition: .onQueue(queue))
 
-        log.default("waitForCommand %{public}@", Data([command.rawValue]).hexadecimalString)
+        log.debug("waitForCommand %{public}@", Data([command.rawValue]).hexadecimalString)
         
         // Wait for data to be read.
         queueLock.lock()
@@ -178,8 +181,6 @@ extension PeripheralManager {
                 log.error("waitForCommand failed. rawValue != value[0] (%d != %d); data=%@", command.rawValue, value[0], value.hexadecimalString)
                 throw PeripheralManagerError.incorrectResponse
             }
-
-            log.default("waitForCommand success %{public}@", value.hexadecimalString)
 
             return
         }
@@ -236,5 +237,18 @@ extension PeripheralManager {
         }
         
         throw PeripheralManagerError.emptyValue
+    }
+}
+
+
+// Marks certain errors are the kinds we see from NXP pods that occasionally become unresponsive
+extension PeripheralManagerError {
+    var isSymptomaticOfUnresponsivePod: Bool {
+        switch self {
+        case .emptyValue, .incorrectResponse:
+            return true
+        default:
+            return false
+        }
     }
 }
