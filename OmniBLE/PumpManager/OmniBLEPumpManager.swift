@@ -1270,7 +1270,7 @@ extension OmniBLEPumpManager: PumpManager {
                 self.setState { (state) in
                     state.insulinType = insulinType
                 }
-                //self.podComms.insulinType = insulinType
+                self.podComms.insulinType = insulinType
             }
         }
     }
@@ -1491,7 +1491,7 @@ extension OmniBLEPumpManager: PumpManager {
             if podStatus.deliveryStatus == .suspended {
                 do {
                     let scheduleOffset = self.state.timeZone.scheduleOffset(forDate: Date())
-                    let beep = self.beepPreference.shouldBeepForManualCommand
+                    let beep = automatic ? self.beepPreference.shouldBeepForAutomaticBolus : self.beepPreference.shouldBeepForManualCommand
                     let podStatus = try session.resumeBasal(schedule: self.state.basalSchedule, scheduleOffset: scheduleOffset, acknowledgementBeep: beep, completionBeep: beep)
                     self.clearSuspendReminder()
                     guard podStatus.deliveryStatus.bolusing == false else {

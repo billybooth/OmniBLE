@@ -63,7 +63,8 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
     var duration: TimeInterval?
     var scheduledCertainty: ScheduledCertainty
     var isHighTemp: Bool = false    // Track this for situations where cancelling temp basal is unacknowledged, and recovery fails, and we have to assume the most possible delivery
-    
+    var insulinType: InsulinType
+
     var finishTime: Date? {
         get {
             return duration != nil ? startTime.addingTimeInterval(duration!) : nil
@@ -100,7 +101,7 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         return units
     }
 
-    init(bolusAmount: Double, startTime: Date, scheduledCertainty: ScheduledCertainty, automatic: Bool = false) {
+    init(bolusAmount: Double, startTime: Date, scheduledCertainty: ScheduledCertainty, insulinType: InsulinType, automatic: Bool = false) {
         self.doseType = .bolus
         self.units = bolusAmount
         self.startTime = startTime
@@ -108,9 +109,10 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         self.scheduledCertainty = scheduledCertainty
         self.scheduledUnits = nil
         self.automatic = automatic
+        self.insulinType = insulinType
     }
     
-    init(tempBasalRate: Double, startTime: Date, duration: TimeInterval, isHighTemp: Bool, scheduledCertainty: ScheduledCertainty) {
+    init(tempBasalRate: Double, startTime: Date, duration: TimeInterval, isHighTemp: Bool, scheduledCertainty: ScheduledCertainty, insulinType: InsulinType) {
         self.doseType = .tempBasal
         self.units = tempBasalRate * duration.hours
         self.startTime = startTime
@@ -119,6 +121,7 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         self.scheduledUnits = nil
         self.automatic = true
         self.isHighTemp = isHighTemp
+        self.insulinType = insulinType
     }
 
     init(suspendStartTime: Date, scheduledCertainty: ScheduledCertainty) {
@@ -129,7 +132,7 @@ public struct UnfinalizedDose: RawRepresentable, Equatable, CustomStringConverti
         self.automatic = false
     }
 
-    init(resumeStartTime: Date, scheduledCertainty: ScheduledCertainty) {
+    init(resumeStartTime: Date, scheduledCertainty: ScheduledCertainty, insulinType: InsulinType) {
         self.doseType = .resume
         self.units = 0
         self.startTime = resumeStartTime
