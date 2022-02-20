@@ -490,7 +490,7 @@ extension OmniBLEPumpManager {
             totalDelivery: podState.lastInsulinMeasurements?.delivered,
             lastStatus: podState.lastInsulinMeasurements?.validTime,
             fault: podState.fault?.faultEventCode,
-            activatedAt: podState.activatedAt!,
+            activatedAt: podState.activatedAt,
             activeTime: podState.activeTime,
             pdmRef: podState.pdmRef
         )

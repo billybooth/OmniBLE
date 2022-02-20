@@ -18,7 +18,7 @@ public struct PodDetails {
     var totalDelivery: Double?
     var lastStatus: Date?
     var fault: FaultEventCode?
-    var activatedAt: Date
+    var activatedAt: Date?
     var activeTime: TimeInterval?
     var pdmRef: String?
 }
