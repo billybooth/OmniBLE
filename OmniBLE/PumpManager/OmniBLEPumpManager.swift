@@ -1486,7 +1486,6 @@ extension OmniBLEPumpManager: PumpManager {
             if podStatus.deliveryStatus == .suspended {
                 do {
                     let scheduleOffset = self.state.timeZone.scheduleOffset(forDate: Date())
-                    let beep = automatic ? self.beepPreference.shouldBeepForAutomaticBolus : self.beepPreference.shouldBeepForManualCommand
                     let podStatus = try session.resumeBasal(schedule: self.state.basalSchedule, scheduleOffset: scheduleOffset, acknowledgementBeep: beep, completionBeep: beep)
                     self.clearSuspendReminder()
                     guard podStatus.deliveryStatus.bolusing == false else {
