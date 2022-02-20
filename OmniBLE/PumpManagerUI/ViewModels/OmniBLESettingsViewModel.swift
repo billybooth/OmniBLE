@@ -104,14 +104,15 @@ class OmniBLESettingsViewModel: ObservableObject {
 
     @Published var insulinType: InsulinType?
 
+    @Published var podDetails: PodDetails?
+
+    @Published var previousPodDetails: PodDetails?
+
+    
     var timeZone: TimeZone {
         return pumpManager.status.timeZone
     }
-    
-    var podDetails: PodDetails? {
-        return pumpManager.podDetails
-    }
-        
+
     var viewTitle: String {
         return pumpManager.localizedTitle
     }
@@ -203,6 +204,8 @@ class OmniBLESettingsViewModel: ObservableObject {
         beepPreference = self.pumpManager.beepPreference
         podConnected = self.pumpManager.isConnected
         insulinType = self.pumpManager.insulinType
+        podDetails = self.pumpManager.podDetails
+        previousPodDetails = self.pumpManager.previousPodDetails
         pumpManager.addPodStateObserver(self, queue: DispatchQueue.main)
         
         // Trigger refresh
@@ -426,6 +429,8 @@ extension OmniBLESettingsViewModel: PodStateObserver {
         podCommState = self.pumpManager.podCommState
         beepPreference = self.pumpManager.beepPreference
         insulinType = self.pumpManager.insulinType
+        podDetails = self.pumpManager.podDetails
+        previousPodDetails = self.pumpManager.previousPodDetails
     }
 
     func podConnectionStateDidChange(isConnected: Bool) {
@@ -481,6 +486,36 @@ extension OmniBLEPumpManager {
                 return nil
             }
         }
+    }
+
+    private func podDetails(fromPodState podState: PodState, andDeviceName deviceName: String?) -> PodDetails {
+        return PodDetails(
+            lotNumber: podState.lotNo,
+            sequenceNumber: podState.lotSeq,
+            firmwareVersion: podState.firmwareVersion,
+            bleFirmwareVersion: podState.bleFirmwareVersion,
+            deviceName: deviceName,
+            totalDelivery: podState.lastInsulinMeasurements?.delivered,
+            lastStatus: podState.lastInsulinMeasurements?.validTime,
+            fault: podState.fault?.faultEventCode,
+            activatedAt: podState.activatedAt,
+            activeTime: podState.activeTime,
+            pdmRef: podState.pdmRef
+        )
+    }
+
+    public var podDetails: PodDetails? {
+        guard let podState = state.podState else {
+            return nil
+        }
+        return podDetails(fromPodState: podState, andDeviceName: deviceBLEName)
+    }
+
+    public var previousPodDetails: PodDetails? {
+        guard let podState = state.previousPodState else {
+            return nil
+        }
+        return podDetails(fromPodState: podState, andDeviceName: nil)
     }
 }
 

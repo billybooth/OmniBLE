@@ -54,6 +54,10 @@ public struct OmniBLEPumpManagerState: RawRepresentable, Equatable {
 
     internal var insulinType: InsulinType?
 
+    // Persistence for the pod state of the previous pod, for
+    // user review and manufacturer reporting.
+    internal var previousPodState: PodState?
+
 
     // Indicates that the user has completed initial configuration
     // which means they have configured any parameters, but may not have paired a pod yet.
@@ -134,6 +138,7 @@ public struct OmniBLEPumpManagerState: RawRepresentable, Equatable {
             }
             basalSchedule = schedule
         }
+
         let podState: PodState?
         if let podStateRaw = rawValue["podState"] as? PodState.RawValue {
             podState = PodState(rawValue: podStateRaw)
@@ -219,6 +224,12 @@ public struct OmniBLEPumpManagerState: RawRepresentable, Equatable {
                 }
             }
         }
+
+        if let prevPodStateRaw = rawValue["previousPodState"] as? PodState.RawValue {
+            previousPodState = PodState(rawValue: prevPodStateRaw)
+        } else {
+            previousPodState = nil
+        }
     }
 
     public var rawValue: RawValue {
@@ -244,6 +255,7 @@ public struct OmniBLEPumpManagerState: RawRepresentable, Equatable {
         value["defaultExpirationReminderOffset"] = defaultExpirationReminderOffset
         value["lowReservoirReminderValue"] = lowReservoirReminderValue
         value["lastPumpDataReportDate"] = lastPumpDataReportDate
+        value["previousPodState"] = previousPodState?.rawValue
         return value
     }
 }
@@ -291,6 +303,7 @@ extension OmniBLEPumpManagerState: CustomDebugStringConvertible {
             "* acknowledgedTimeOffsetAlert: \(acknowledgedTimeOffsetAlert)",
             "* initialConfigurationCompleted: \(initialConfigurationCompleted)",
             String(reflecting: podState),
+            "* PreviousPodState: \(String(reflecting: previousPodState))"
         ].joined(separator: "\n")
     }
 }

@@ -110,6 +110,10 @@ public class OmniBLEPumpManager: DeviceManager {
         self.init(state: state)
     }
 
+    public var deviceBLEName: String? {
+        return self.podComms.manager?.peripheral.name
+    }
+
     private var podComms: PodComms {
         get {
             return lockedPodComms.value
@@ -267,6 +271,7 @@ public class OmniBLEPumpManager: DeviceManager {
             "## OmniBLEPumpManager",
             "podComms: \(String(reflecting: podComms))",
             "provideHeartbeat: \(provideHeartbeat)",
+            "connected: \(isConnected)",
             "state: \(String(reflecting: state))",
             "status: \(String(describing: status))",
             "podStateObservers.count: \(podStateObservers.cleanupDeallocatedElements().count)",
@@ -518,22 +523,6 @@ extension OmniBLEPumpManager {
         return state.podState?.expiresAt
     }
 
-    public var podDetails: PodDetails? {
-        guard let podState = state.podState else {
-            return nil
-        }
-        return PodDetails(
-            lotNumber: podState.lotNo,
-            sequenceNumber: podState.lotSeq,
-            firmwareVersion: podState.firmwareVersion,
-            bleFirmwareVersion: podState.bleFirmwareVersion,
-            deviceName: podComms.manager?.peripheral.name ?? "NA",
-            totalDelivery: podState.lastInsulinMeasurements?.delivered,
-            lastStatus: podState.lastInsulinMeasurements?.validTime,
-            fault: podState.fault?.faultEventCode
-        )
-    }
-
     public func buildPumpStatusHighlight(for state: OmniBLEPumpManagerState, andDate date: Date = Date()) -> PumpManagerStatus.PumpStatusHighlight? {
         if state.podState?.pendingCommand != nil {
             return PumpManagerStatus.PumpStatusHighlight(localizedMessage: NSLocalizedString("Comms Issue", comment: "Status highlight that delivery is uncertain."),
@@ -647,7 +636,10 @@ extension OmniBLEPumpManager {
     // MARK: - Pod comms
 
     private func prepForNewPod() {
+
         setState { state in
+            state.previousPodState = state.podState
+
             if state.controllerId == CONTROLLER_ID {
                 // Switch from using the common fixed controllerId to a created semi-unique one
                 state.controllerId = createControllerId()
@@ -661,13 +653,11 @@ extension OmniBLEPumpManager {
             }
         }
         self.podComms.prepForNewPod(myId: self.state.controllerId, podId: self.state.podId)
-
-
     }
 
     public func forgetPod(completion: @escaping () -> Void) {
 
-        self.podComms.forgetCurrentPod()
+        self.podComms.disconnectPodAndFinalizeDelivery()
 
         if let dosesToStore = state.podState?.dosesToStore {
             store(doses: dosesToStore, completion: { error in
@@ -1511,7 +1501,7 @@ extension OmniBLEPumpManager: PumpManager {
             //      in 63 minutes if bolus had not completed by then.
             let bolusWasAutomaticIndicator: TimeInterval = automatic ? TimeInterval(minutes: 0x3F) : 0
 
-            let result = session.bolus(units: enactUnits, automatic: automatic, acknowledgementBeep: beep, completionBeep: beep, programReminderInterval:  bolusWasAutomaticIndicator)
+            let result = session.bolus(units: enactUnits, automatic: automatic, acknowledgementBeep: beep, completionBeep: beep && !automatic, programReminderInterval:  bolusWasAutomaticIndicator)
             session.dosesForStorage() { (doses) -> Bool in
                 return self.store(doses: doses, in: session)
             }

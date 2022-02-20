@@ -74,7 +74,7 @@ public class PodComms: CustomDebugStringConvertible {
         podStateLock.unlock()
     }
     
-    public func forgetCurrentPod() {
+    public func disconnectPodAndFinalizeDelivery() {
         if let manager = manager {
             self.log.default("Removing %{public}@ from auto-connect ids", manager.peripheral)
             bluetoothManager.disconnectFromDevice(uuidString: manager.peripheral.identifier.uuidString)
