@@ -1452,6 +1452,8 @@ extension OmniBLEPumpManager: PumpManager {
         // Round to nearest supported volume
         let enactUnits = roundToSupportedBolusVolume(units: units)
 
+        let beep = automatic ? beepPreference.shouldBeepForAutomaticBolus : beepPreference.shouldBeepForManualCommand
+
         self.podComms.runSession(withName: "Bolus") { (result) in
             let session: PodCommsSession
             switch result {
@@ -1501,7 +1503,6 @@ extension OmniBLEPumpManager: PumpManager {
                 return
             }
 
-            let beep = self.beepPreference.shouldBeepForManualCommand
 
             // Use bits for the program reminder interval (not used by app)
             //   This trick enables determination, from just the hex messages
