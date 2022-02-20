@@ -127,7 +127,7 @@ class OmniBLESettingsViewModel: ObservableObject {
     var recoveryText: String? {
         if case .fault = podCommState {
             return LocalizedString("Insulin delivery stopped. Change Pod now.", comment: "The action string on pod status page when pod faulted")
-        } else if isPodDataStale {
+        } else if podOk && isPodDataStale {
             return LocalizedString("Make sure your phone and pod are close to each other. If communication issues persist, move to a new area.", comment: "The action string on pod status page when pod data is stale")
         } else if let podTimeRemaining = pumpManager.podTimeRemaining, podTimeRemaining < 0 {
             return LocalizedString("Change Pod now. Insulin delivery will stop 8 hours after the Pod has expired or when no more insulin remains.", comment: "The action string on pod status page when pod expired")

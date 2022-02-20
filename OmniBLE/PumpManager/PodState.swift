@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import LoopKit
 
 public enum SetupProgress: Int {
     case addressAssigned = 0
@@ -96,6 +97,7 @@ public struct PodState: RawRepresentable, Equatable, CustomDebugStringConvertibl
     public var primeFinishTime: Date?
     public var setupProgress: SetupProgress
     public var configuredAlerts: [AlertSlot: PodAlert]
+    public var insulinType: InsulinType
 
     public var activeAlerts: [AlertSlot: PodAlert] {
         var active = [AlertSlot: PodAlert]()
@@ -107,7 +109,7 @@ public struct PodState: RawRepresentable, Equatable, CustomDebugStringConvertibl
         return active
     }
     
-    public init(address: UInt32, ltk: Data, firmwareVersion: String, bleFirmwareVersion: String, lotNo: UInt32, lotSeq: UInt32, productId: UInt8, messageTransportState: MessageTransportState? = nil, bleIdentifier: String) {
+    public init(address: UInt32, ltk: Data, firmwareVersion: String, bleFirmwareVersion: String, lotNo: UInt32, lotSeq: UInt32, productId: UInt8, messageTransportState: MessageTransportState? = nil, bleIdentifier: String, insulinType: InsulinType) {
         self.address = address
         self.ltk = ltk
         self.firmwareVersion = firmwareVersion
@@ -125,6 +127,7 @@ public struct PodState: RawRepresentable, Equatable, CustomDebugStringConvertibl
         self.setupProgress = .addressAssigned
         self.configuredAlerts = [.slot7: .waitingForPairingReminder]
         self.bleIdentifier = bleIdentifier
+        self.insulinType = insulinType
     }
     
     public var unfinishedSetup: Bool {
@@ -227,7 +230,7 @@ public struct PodState: RawRepresentable, Equatable, CustomDebugStringConvertibl
         switch pendingCommand {
         case .program(let program, _, let commandDate):
 
-            if let dose = program.unfinalizedDose(at: commandDate, withCertainty: .uncertain) {
+            if let dose = program.unfinalizedDose(at: commandDate, withCertainty: .uncertain, insulinType: insulinType) {
                 switch dose.doseType {
                 case .bolus:
                     if dose.isFinished() {
@@ -468,6 +471,12 @@ public struct PodState: RawRepresentable, Equatable, CustomDebugStringConvertibl
         }
         
         self.primeFinishTime = rawValue["primeFinishTime"] as? Date
+
+        if let rawInsulinType = rawValue["insulinType"] as? InsulinType.RawValue, let insulinType = InsulinType(rawValue: rawInsulinType) {
+            self.insulinType = insulinType
+        } else {
+            self.insulinType = .novolog
+        }
     }
     
     public var rawValue: RawValue {
@@ -485,7 +494,8 @@ public struct PodState: RawRepresentable, Equatable, CustomDebugStringConvertibl
             "alerts": activeAlertSlots.rawValue,
             "messageTransportState": messageTransportState.rawValue,
             "setupProgress": setupProgress.rawValue,
-            "bleIdentifier": bleIdentifier
+            "bleIdentifier": bleIdentifier,
+            "insulinType": insulinType.rawValue
             ]
         
 
@@ -536,6 +546,7 @@ public struct PodState: RawRepresentable, Equatable, CustomDebugStringConvertibl
             "* setupProgress: \(setupProgress)",
             "* primeFinishTime: \(String(describing: primeFinishTime))",
             "* configuredAlerts: \(String(describing: configuredAlerts))",
+            "* insulinType: \(String(describing: insulinType))",
             "",
             fault != nil ? String(reflecting: fault!) : "fault: nil",
             "",
