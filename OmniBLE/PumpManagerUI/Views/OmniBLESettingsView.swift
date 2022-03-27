@@ -257,6 +257,7 @@ struct OmniBLESettingsView: View  {
                     if let faultAction = viewModel.recoveryText {
                         Divider()
                         Text(faultAction)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .font(Font.footnote.weight(.semibold))
                     }
                 }
@@ -299,6 +300,20 @@ struct OmniBLESettingsView: View  {
                     }
                     Spacer()
                     Text(self.viewModel.expiresAtString)
+                        .foregroundColor(Color.secondary)
+                }
+                
+                HStack {
+                    FrameworkLocalText("Pod Remaining", comment: "Label for pod time remaining row")
+                    Spacer()
+                    Text(self.viewModel.podTimeRemainingString)
+                        .foregroundColor(Color.secondary)
+                }
+                
+                HStack {
+                    FrameworkLocalText("Svc Remaining", comment: "Label for service time remaining row")
+                    Spacer()
+                    Text(self.viewModel.podServiceTimeRemainingString)
                         .foregroundColor(Color.secondary)
                 }
                 

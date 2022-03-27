@@ -130,11 +130,39 @@ class OmniBLESettingsViewModel: ObservableObject {
             return LocalizedString("Insulin delivery stopped. Change Pod now.", comment: "The action string on pod status page when pod faulted")
         } else if podOk && isPodDataStale {
             return LocalizedString("Make sure your phone and pod are close to each other. If communication issues persist, move to a new area.", comment: "The action string on pod status page when pod data is stale")
-        } else if let podTimeRemaining = pumpManager.podTimeRemaining, podTimeRemaining < 0 {
-            return LocalizedString("Change Pod now. Insulin delivery will stop 8 hours after the Pod has expired or when no more insulin remains.", comment: "The action string on pod status page when pod expired")
+        } else if let serviceTimeRemaining = pumpManager.podServiceTimeRemaining, serviceTimeRemaining <= .hours(8) {
+            timeRemainingFormatter.allowedUnits = serviceTimeRemaining > .hours(2) ? [.hour] : [.hour, .minute]
+            if var formattedTimeString = timeRemainingFormatter.string(from: serviceTimeRemaining) {
+                formattedTimeString.unicodeScalars.removeAll(where: { CharacterSet.punctuationCharacters.contains($0) })
+                return String(format: LocalizedString("Change Pod now. Insulin delivery will stop in %@ or when no more insulin remains.", comment: "The dynamic action string on pod status page when pod expired"), formattedTimeString)
+            } else {
+                return LocalizedString("Change Pod now. Insulin delivery will stop 8 hours after the Pod has expired or when no more insulin remains.", comment: "The action string on pod status page when pod expired")
+            }
         } else {
             return nil
         }
+    }
+    
+    var podTimeRemainingString: String {
+        if let podTimeRemaining = pumpManager.podTimeRemaining {
+            timeRemainingFormatter.allowedUnits = podTimeRemaining > .hours(2) ? [.hour] : [.hour, .minute]
+            if var podTimeRemainingString = timeRemainingFormatter.string(from: podTimeRemaining) {
+                podTimeRemainingString.unicodeScalars.removeAll(where: { CharacterSet.punctuationCharacters.contains($0) })
+                return String(format: "%.1f: %@", podTimeRemaining, podTimeRemainingString)
+            }
+        }
+        return "-"
+    }
+    
+    var podServiceTimeRemainingString: String {
+        if let serviceTimeRemaining = pumpManager.podServiceTimeRemaining {
+            timeRemainingFormatter.allowedUnits = serviceTimeRemaining > .hours(2) ? [.hour] : [.hour, .minute]
+            if var formattedTimeString = timeRemainingFormatter.string(from: serviceTimeRemaining) {
+                formattedTimeString.unicodeScalars.removeAll(where: { CharacterSet.punctuationCharacters.contains($0) })
+                return String(format: "%.1f: %@", serviceTimeRemaining, String(formattedTimeString))
+            }
+        }
+        return "-"
     }
     
     var notice: DashSettingsNotice? {
@@ -171,6 +199,14 @@ class OmniBLESettingsViewModel: ObservableObject {
         return dateFormatter
     }()
 
+    let timeRemainingFormatter: DateComponentsFormatter = {
+        let dateComponentsFormatter = DateComponentsFormatter()
+        dateComponentsFormatter.allowedUnits = [.hour, .minute]
+        dateComponentsFormatter.unitsStyle = .full
+        dateComponentsFormatter.zeroFormattingBehavior = .dropAll
+        return dateComponentsFormatter
+    }()
+    
     let basalRateFormatter: NumberFormatter = {
         let numberFormatter = NumberFormatter()
         numberFormatter.numberStyle = .decimal
@@ -474,6 +510,13 @@ extension OmniBLEPumpManager {
                 return .podDeactivating
             }
         }
+    }
+    
+    var podServiceTimeRemaining : TimeInterval? {
+        guard let podTimeRemaining = podTimeRemaining else {
+            return nil;
+        }
+        return Pod.serviceDuration - Pod.nominalPodLife + podTimeRemaining;
     }
     
     var basalDeliveryRate: Double? {
