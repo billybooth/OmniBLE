@@ -57,6 +57,17 @@ class OmniBLESettingsViewModel: ObservableObject {
         }
     }
 
+    var serviceTimeRemainingString: String? {
+        if let serviceTimeRemaining = pumpManager.podServiceTimeRemaining {
+            timeRemainingFormatter.allowedUnits = serviceTimeRemaining > .hours(2) ? [.hour] : [.hour, .minute]
+            if var serviceTimeRemainingString = timeRemainingFormatter.string(from: serviceTimeRemaining) {
+                serviceTimeRemainingString.unicodeScalars.removeAll(where: { CharacterSet.punctuationCharacters.contains($0) })
+                return serviceTimeRemainingString
+            }
+        }
+        return nil
+    }
+
     // Expiration reminder date for current pod
     @Published var expirationReminderDate: Date?
     
@@ -131,10 +142,8 @@ class OmniBLESettingsViewModel: ObservableObject {
         } else if podOk && isPodDataStale {
             return LocalizedString("Make sure your phone and pod are close to each other. If communication issues persist, move to a new area.", comment: "The action string on pod status page when pod data is stale")
         } else if let serviceTimeRemaining = pumpManager.podServiceTimeRemaining, serviceTimeRemaining <= .hours(8) {
-            timeRemainingFormatter.allowedUnits = serviceTimeRemaining > .hours(2) ? [.hour] : [.hour, .minute]
-            if var formattedTimeString = timeRemainingFormatter.string(from: serviceTimeRemaining) {
-                formattedTimeString.unicodeScalars.removeAll(where: { CharacterSet.punctuationCharacters.contains($0) })
-                return String(format: LocalizedString("Change Pod now. Insulin delivery will stop in %@ or when no more insulin remains.", comment: "The dynamic action string on pod status page when pod expired"), formattedTimeString)
+            if let serviceTimeRemainingString = serviceTimeRemainingString {
+                return String(format: LocalizedString("Change Pod now. Insulin delivery will stop in %@ or when no more insulin remains.", comment: "The dynamic action string on pod status page when pod expired"), serviceTimeRemainingString)
             } else {
                 return LocalizedString("Change Pod now. Insulin delivery will stop 8 hours after the Pod has expired or when no more insulin remains.", comment: "The action string on pod status page when pod expired")
             }
@@ -156,10 +165,8 @@ class OmniBLESettingsViewModel: ObservableObject {
     
     var podServiceTimeRemainingString: String {
         if let serviceTimeRemaining = pumpManager.podServiceTimeRemaining {
-            timeRemainingFormatter.allowedUnits = serviceTimeRemaining > .hours(2) ? [.hour] : [.hour, .minute]
-            if var formattedTimeString = timeRemainingFormatter.string(from: serviceTimeRemaining) {
-                formattedTimeString.unicodeScalars.removeAll(where: { CharacterSet.punctuationCharacters.contains($0) })
-                return String(format: "%.1f: %@", serviceTimeRemaining, String(formattedTimeString))
+            if let serviceTimeRemainingString = serviceTimeRemainingString {
+                return String(format: "%.1f: %@", serviceTimeRemaining, serviceTimeRemainingString)
             }
         }
         return "-"
