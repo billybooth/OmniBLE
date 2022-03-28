@@ -10,7 +10,7 @@ import SwiftUI
 import LoopKit
 import LoopKitUI
 import HealthKit
-
+import os.log
 
 enum DashSettingsViewAlert {
     case suspendError(Error)
@@ -60,8 +60,7 @@ class OmniBLESettingsViewModel: ObservableObject {
     var serviceTimeRemainingString: String? {
         if let serviceTimeRemaining = pumpManager.podServiceTimeRemaining {
             timeRemainingFormatter.allowedUnits = serviceTimeRemaining > .hours(2) ? [.hour] : [.hour, .minute]
-            if var serviceTimeRemainingString = timeRemainingFormatter.string(from: serviceTimeRemaining) {
-                serviceTimeRemainingString.unicodeScalars.removeAll(where: { CharacterSet.punctuationCharacters.contains($0) })
+            if let serviceTimeRemainingString = timeRemainingFormatter.string(from: serviceTimeRemaining)?.replacingOccurrences(of: ",", with: "") {
                 return serviceTimeRemainingString
             }
         }
@@ -136,37 +135,36 @@ class OmniBLESettingsViewModel: ObservableObject {
         return Date().timeIntervalSince(pumpManager.lastSync ?? .distantPast) > .minutes(12)
     }
 
+    public let log = OSLog(category: "OmniBLESettingsViewModel")
+    
     var recoveryText: String? {
         if case .fault = podCommState {
+            if let serviceTimeRemaining = pumpManager.podServiceTimeRemaining, let serviceTimeRemainingString = serviceTimeRemainingString {
+                self.log.default("Insulin delivery has stopped with %@ (%.1f) remaining.", serviceTimeRemainingString, serviceTimeRemaining)
+            }
             return LocalizedString("Insulin delivery stopped. Change Pod now.", comment: "The action string on pod status page when pod faulted")
         } else if podOk && isPodDataStale {
             return LocalizedString("Make sure your phone and pod are close to each other. If communication issues persist, move to a new area.", comment: "The action string on pod status page when pod data is stale")
-        } else if let serviceTimeRemaining = pumpManager.podServiceTimeRemaining, serviceTimeRemaining <= .hours(8) {
+        } else if let serviceTimeRemaining = pumpManager.podServiceTimeRemaining, serviceTimeRemaining <= Pod.serviceDuration - Pod.nominalPodLife {
             if let serviceTimeRemainingString = serviceTimeRemainingString {
+                self.log.default("Insulin delivery will stop in %@ (%.1f).", serviceTimeRemainingString, serviceTimeRemaining)
                 return String(format: LocalizedString("Change Pod now. Insulin delivery will stop in %@ or when no more insulin remains.", comment: "The dynamic action string on pod status page when pod expired"), serviceTimeRemainingString)
             } else {
+                self.log.default("Insulin delivery will stop 8 hours after Pod has expired (%.1f remaining).", serviceTimeRemaining)
                 return LocalizedString("Change Pod now. Insulin delivery will stop 8 hours after the Pod has expired or when no more insulin remains.", comment: "The action string on pod status page when pod expired")
             }
         } else {
+            if let serviceTimeRemaining = pumpManager.podServiceTimeRemaining, let serviceTimeRemainingString = serviceTimeRemainingString {
+                self.log.default("Insulin delivery will stop in %@ (%.1f).", serviceTimeRemainingString, serviceTimeRemaining)
+            }
             return nil
         }
-    }
-    
-    var podTimeRemainingString: String {
-        if let podTimeRemaining = pumpManager.podTimeRemaining {
-            timeRemainingFormatter.allowedUnits = podTimeRemaining > .hours(2) ? [.hour] : [.hour, .minute]
-            if var podTimeRemainingString = timeRemainingFormatter.string(from: podTimeRemaining) {
-                podTimeRemainingString.unicodeScalars.removeAll(where: { CharacterSet.punctuationCharacters.contains($0) })
-                return String(format: "%.1f: %@", podTimeRemaining, podTimeRemainingString)
-            }
-        }
-        return "-"
     }
     
     var podServiceTimeRemainingString: String {
         if let serviceTimeRemaining = pumpManager.podServiceTimeRemaining {
             if let serviceTimeRemainingString = serviceTimeRemainingString {
-                return String(format: "%.1f: %@", serviceTimeRemaining, serviceTimeRemainingString)
+                return String(format: "%@ (%.1f)", serviceTimeRemainingString, serviceTimeRemaining)
             }
         }
         return "-"
