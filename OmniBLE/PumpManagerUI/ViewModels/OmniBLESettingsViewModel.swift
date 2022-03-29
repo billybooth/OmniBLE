@@ -59,7 +59,7 @@ class OmniBLESettingsViewModel: ObservableObject {
 
     var serviceTimeRemainingString: String? {
         if let serviceTimeRemaining = pumpManager.podServiceTimeRemaining {
-            timeRemainingFormatter.allowedUnits = serviceTimeRemaining >= .hours(2) ? [.hour] : [.hour, .minute]
+            timeRemainingFormatter.allowedUnits = serviceTimeRemaining < .hours(2) ? [.hour, .minute] : [.hour]
             if let serviceTimeRemainingString = timeRemainingFormatter.string(from: serviceTimeRemaining)?.replacingOccurrences(of: ",", with: "") {
                 return serviceTimeRemainingString
             }
