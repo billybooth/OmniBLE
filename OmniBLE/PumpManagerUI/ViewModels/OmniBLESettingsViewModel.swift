@@ -58,13 +58,11 @@ class OmniBLESettingsViewModel: ObservableObject {
     }
 
     var serviceTimeRemainingString: String? {
-        if let serviceTimeRemaining = pumpManager.podServiceTimeRemaining {
-            timeRemainingFormatter.allowedUnits = serviceTimeRemaining < .hours(2) ? [.hour, .minute] : [.hour]
-            if let serviceTimeRemainingString = timeRemainingFormatter.string(from: serviceTimeRemaining)?.replacingOccurrences(of: ",", with: "") {
-                return serviceTimeRemainingString
-            }
+        if let serviceTimeRemaining = pumpManager.podServiceTimeRemaining, let serviceTimeRemainingString = timeRemainingFormatter.string(from: serviceTimeRemaining) {
+            return serviceTimeRemainingString
+        } else {
+            return nil
         }
-        return nil
     }
 
     // Expiration reminder date for current pod
@@ -142,7 +140,7 @@ class OmniBLESettingsViewModel: ObservableObject {
             return LocalizedString("Make sure your phone and pod are close to each other. If communication issues persist, move to a new area.", comment: "The action string on pod status page when pod data is stale")
         } else if let serviceTimeRemaining = pumpManager.podServiceTimeRemaining, serviceTimeRemaining <= Pod.serviceDuration - Pod.nominalPodLife {
             if let serviceTimeRemainingString = serviceTimeRemainingString {
-                return String(format: LocalizedString("Change Pod now. Insulin delivery will stop in %@ or when no more insulin remains.", comment: "Format string for the action string on pod status page when pod expired"), serviceTimeRemainingString)
+                return String(format: LocalizedString("Change Pod now. Insulin delivery will stop in %1$@ or when no more insulin remains.", comment: "Format string for the action string on pod status page when pod expired. (1: service time remaining)"), serviceTimeRemainingString)
             } else {
                 return LocalizedString("Change Pod now. Insulin delivery will stop 8 hours after the Pod has expired or when no more insulin remains.", comment: "The action string on pod status page when pod expired")
             }

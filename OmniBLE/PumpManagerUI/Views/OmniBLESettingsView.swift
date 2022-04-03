@@ -256,11 +256,10 @@ struct OmniBLESettingsView: View  {
                     }
                     if let faultAction = viewModel.recoveryText {
                         Divider()
-                        VStack {
-                            Text(faultAction)
-                                .font(Font.footnote.weight(.semibold))
-                                .fixedSize(horizontal: false, vertical: true)
-                        }.frame(maxWidth: .infinity, alignment: .leading)
+                        Text(faultAction)
+                            .font(Font.footnote.weight(.semibold))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 if let notice = viewModel.notice {
